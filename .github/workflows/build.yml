@@ -36,7 +36,8 @@ env:
   FEED_NAME: natmap
   # 要编译的包目录。luci-i18n-natmap-* 翻译包在同一个目录里定义，编译它会一并产出。
   BUILD_PACKAGES: luci-app-natmap
-  PKG_MAKEFILE: luci-app-natmap/Makefile
+  # 版本号来源。本仓库为扁平布局：包定义（Makefile）就在仓库根目录
+  PKG_MAKEFILE: Makefile
 
 jobs:
   prepare:
@@ -105,9 +106,15 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/local/.ghcup /usr/share/dotnet /usr/share/swift
           df -h / | tail -n 1
 
+      # 本仓库是扁平布局（Makefile/htdocs/po/root 都在根目录），而 OpenWrt 的 feed
+      # 扫描（`find feeds/<名> -mindepth 1 -name Makefile`）只认 feed 根目录下的
+      # 一级子目录，根目录自身的 Makefile 不算一个包。
+      # 所以这里把代码签出到子目录 luci-app-natmap/ 里，让工作区本身成为合法的
+      # feed 根目录，再通过 FEED_DIR 交给 SDK 动作挂载为 /feed。
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          path: luci-app-natmap
 
       - name: 使用 OpenWrt SDK 编译
         uses: openwrt/gh-action-sdk@v11
@@ -115,6 +122,7 @@ jobs:
           ARCH: ${{ env.SDK_ARCH }}
           FEEDNAME: ${{ env.FEED_NAME }}
           PACKAGES: ${{ env.BUILD_PACKAGES }}
+          FEED_DIR: ${{ github.workspace }}
           V: s
 
       - name: 收集编译产物

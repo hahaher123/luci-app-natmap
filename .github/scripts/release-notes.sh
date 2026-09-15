@@ -13,7 +13,7 @@ TAG="${1:?用法: release-notes.sh <tag> [dist-dir] [out-dir]}"
 DIST="${2:-dist}"
 OUT="${3:-.}"
 
-REPO="${GITHUB_REPOSITORY:-hahaher123/openwrt-natmap}"
+REPO="${GITHUB_REPOSITORY:-hahaher123/luci-app-natmap}"
 BASE_URL="https://github.com/${REPO}"
 
 # 上一个 tag（排除本次的）

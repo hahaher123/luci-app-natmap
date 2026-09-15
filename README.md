@@ -56,7 +56,7 @@
 
 | 操作 | 行为 |
 |---|---|
-| Actions → Build & Release Packages → Run workflow | 编译当前分支代码；默认按 `luci-app-natmap/Makefile` 的 `PKG_VERSION` 生成 `v<版本>` 标签并创建/更新对应 Release |
+| Actions → Build & Release Packages → Run workflow | 编译当前分支代码；默认按仓库根目录 `Makefile` 的 `PKG_VERSION` 生成 `v<版本>` 标签并创建/更新对应 Release |
 | 同上，`version` 填具体版本号 | 用指定版本号（不含 `v` 前缀）打标签、发版 |
 | 同上，勾选 `force` | 即使标签已存在也重新编译，并覆盖 Release 资产 |
 
@@ -76,8 +76,9 @@
 **实现要点**
 
 - 用官方 `openwrt/gh-action-sdk` 在 `x86_64-25.12.5` SDK 容器里编译；SDK 版本写在 workflow 顶部的 `env.SDK_ARCH`，需要 ipk（OpenWrt 24.10 及更早）时改成 `x86_64-24.10.7` 并把收集产物时的 `.apk` 换成 `.ipk` 即可；
-- 只编译 `luci-app-natmap` 目录，`luci-i18n-natmap-*` 翻译包由 `luci.mk` 在该目录下生成，一并产出（当前仓库只保留 `po/zh_Hans`，因此只产出 `luci-i18n-natmap-zh-cn`）；
-- `luci-app-natmap/Makefile` 里把本应用与翻译包的 `DEFAULT` 显式设为 `m`——否则它们默认为 `n`，SDK 的 `make package/<目录>/compile` 会直接跳过未启用的包目录，构建不出任何东西；
+- 本仓库是**扁平布局**（`Makefile` 就在根目录），而 SDK 动作把 `/feed` 当作 feed 根目录、只识别它下面的一级子目录，因此 workflow 里用 `path: luci-app-natmap` 把代码签出到子目录，再把这个目录作为 feed 交给 SDK——这样 `feeds install` 与 `make package/luci-app-natmap/compile` 才能找到包；
+- `luci-i18n-natmap-*` 翻译包由 `luci.mk` 在同一个目录下生成，编译本应用时一并产出（当前只保留 `po/zh_Hans`，因此只产出 `luci-i18n-natmap-zh-cn`）；
+- `Makefile` 里把本应用与翻译包的 `DEFAULT` 显式设为 `m`——否则它们默认为 `n`，SDK 的 `make package/<目录>/compile` 会直接跳过未启用的包目录，构建不出任何东西；
 - Release 说明由 `.github/scripts/release-notes.sh` 生成：列出上一个标签以来的提交、本次附加的文件与安装命令。
 
 **关于包签名**：CI 编译的包未经 OpenWrt 官方密钥签名，安装时必须加 `--allow-untrusted`（见下文"直接安装预编译包"）。如需签名，在仓库 Secrets 里配置 `PRIVATE_KEY`（apk 签名私钥）即可，workflow 会自动带上。
@@ -109,13 +110,15 @@
 
 ## 🚀 编译与安装
 
-### 1. 添加软件源
+### 1. 放入 OpenWrt 源码
 
-在 OpenWrt 源码的 `feeds.conf.default` **首行**添加（`zzz` 前缀保证排序靠后覆盖，以覆盖官方内置 `luci-app-natmap`）：
+本仓库是**单包扁平布局**：仓库根目录就是包本体（`Makefile` + `htdocs` / `po` / `root`），因此不能用 `feeds.conf` 的 `src-git` 直接添加（feed 只识别根目录下的一级子目录）。请按包目录克隆进 OpenWrt 源码：
 
-```text
-src-git zzz https://github.com/hahaher123/openwrt-natmap.git
+```sh
+git clone https://github.com/hahaher123/luci-app-natmap.git package/luci-app-natmap
 ```
+
+> 旧版（子目录布局）的 `src-git zzz https://github.com/hahaher123/openwrt-natmap.git` 写法已不再适用。
 
 ### 2. 编译
 
@@ -134,7 +137,7 @@ make -j$(nproc)
 
 ### 4. 直接安装预编译包（apk，OpenWrt 25.12+）
 
-不想自己编译时，可直接下载 [Releases](https://github.com/hahaher123/openwrt-natmap/releases) 里 CI 编译好的 apk：
+不想自己编译时，可直接下载 [Releases](https://github.com/hahaher123/luci-app-natmap/releases) 里 CI 编译好的 apk：
 
 ```sh
 # 包为自行编译、未经 OpenWrt 官方签名，必须加 --allow-untrusted
@@ -207,30 +210,34 @@ uci commit natmap
 
 ## 📁 目录结构
 
+仓库根目录即包本体：
+
 ```text
+├── Makefile                                                 # 包定义
+├── htdocs/luci-static/resources/view/natmap/natmap.js       # LuCI2 前端
+├── po/                                                      # 多语言（en 英文原文 / zh_Hans 简体中文）
+├── root/
+│   ├── etc/config/natmap                                    # 默认配置模板
+│   ├── etc/init.d/natmap                                    # procd 服务
+│   └── usr/share/natmap/
+│       ├── wait-network.sh                                  # 【新增】等待网络就绪 + 解析 -i
+│       ├── update.sh                                        # 打洞成功回调入口
+│       ├── link.sh / forward.sh / notify.sh
+│       ├── plugin-forward/                                  # 转发插件
+│       ├── plugin-link/
+│       │   ├── qbittorrent.sh                               # 【已修复 5.2.x 兼容】
+│       │   ├── transmission.sh / emby.sh / cloudflare_*.sh
+│       │   └── firewall_nas.sh                              # 【新增】防火墙端口同步
+│       └── plugin-notify/                                   # 通知插件（均已加固）
 ├── .github/
-│   ├── workflows/build.yml                                  # 【新增】自动编译 + 发版
+│   ├── workflows/build.yml                                  # 【新增】手动编译 + 发版
 │   └── scripts/release-notes.sh                             # 【新增】生成 Release 说明
-└── luci-app-natmap/
-    ├── Makefile
-    ├── htdocs/luci-static/resources/view/natmap/natmap.js   # LuCI2 前端
-    ├── po/                                                   # 多语言（en 英文原文 / zh_Hans 简体中文）
-    └── root/
-        ├── etc/config/natmap                                # 默认配置模板
-        ├── etc/init.d/natmap                                # procd 服务
-        └── usr/share/natmap/
-            ├── wait-network.sh                              # 【新增】等待网络就绪 + 解析 -i
-            ├── update.sh                                    # 打洞成功回调入口
-            ├── link.sh / forward.sh / notify.sh
-            ├── plugin-forward/                              # 转发插件
-            ├── plugin-link/
-            │   ├── qbittorrent.sh                           # 【已修复 5.2.x 兼容】
-            │   ├── transmission.sh / emby.sh / cloudflare_*.sh
-            │   └── firewall_nas.sh                          # 【新增】防火墙端口同步
-            └── plugin-notify/                               # 通知插件（均已加固）
+├── LICENSE
+└── README.md
 ```
 
-> natmap 核心程序不在此仓库内，由 OpenWrt 官方 feed（`packages/net/natmap`）提供。
+> - natmap 核心程序不在此仓库内，由 OpenWrt 官方 feed（`packages/net/natmap`）提供。
+> - 更新 `po/` 里的翻译后，可用 `gettext` 命令从 `natmap.js` 重新提取文本。
 
 ---
 
@@ -246,6 +253,7 @@ uci commit natmap
 | Cloudflare 联动一直重试失败 | 确认规则名与 `link_cloudflare_redirect_rule_name` 一致；看日志 `修改失败: [...]` 中 Cloudflare 返回的具体 errors（新版脚本已输出）；规则需先在控制台创建 |
 | Cloudflare DDNS 提示「未找到记录」 | 需先在 Cloudflare 控制台手动创建对应类型（AAAA/HTTPS/SRV 及 SRV 目标域名的 A 记录）的 DNS 记录，脚本只更新不创建 |
 | IPv6 能连接但下载器无响应 | 确认对应下载器的「允许 IPv6」已开启，且 `link_qb_ipv6_address` / `link_tr_ipv6_address` 填写了下载器的 IPv6 地址 |
+| `feeds install` 找不到本包 | 本仓库是扁平布局，不能用 `src-git` 添加；请按「编译与安装」第 1 步克隆到 `package/luci-app-natmap` |
 
 ---
 

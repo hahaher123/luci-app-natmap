@@ -2,4 +2,4 @@
 # "$'\r': command not found" 之类的错误，这里统一约束
 *.sh text eol=lf
 # init.d 脚本无扩展名，不被 *.sh 覆盖，单独指定
-luci-app-natmap/root/etc/init.d/* text eol=lf
+root/etc/init.d/* text eol=lf
