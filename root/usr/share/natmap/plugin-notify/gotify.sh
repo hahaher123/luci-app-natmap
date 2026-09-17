@@ -7,58 +7,62 @@ gotify_url="${NOTIFY_GOTIFY_URL}"
 priority="${NOTIFY_GOTIFY_PRIORITY:-5}"
 token="${NOTIFY_GOTIFY_TOKEN}"
 
-# 获取最大重试次数和间隔时间
-# 默认重试次数为1，休眠时间为1s
-max_retries=$2
-sleep_time=$3
-retry_count=0
+# 尝试次数与间隔（由 notify.sh 传入），参数缺失或非法时不会退化成「只试一次」
+max_attempts="${2:-5}"
+sleep_time="${3:-3}"
+case "$max_attempts" in
+'' | *[!0-9]*) max_attempts=5 ;;
+esac
+case "$sleep_time" in
+'' | *[!0-9]*) sleep_time=3 ;;
+esac
 
-# # # 判断是否开启高级功能
-# # if [ "${NOTIFY_ADVANCED_ENABLE}" == 1 ] && [ -n "$NOTIFY_ADVANCED_MAX_RETRIES" ] && [ -n "$NOTIFY_ADVANCED_SLEEP_TIME" ]; then
-# #     # 获取最大重试次数
-# #     max_retries=$((NOTIFY_ADVANCED_MAX_RETRIES == "0" ? 1 : NOTIFY_ADVANCED_MAX_RETRIES))
-# #     # 获取休眠时间
-# #     sleep_time=$((NOTIFY_ADVANCED_SLEEP_TIME == "0" ? 1 : NOTIFY_ADVANCED_SLEEP_TIME))
-# # fi
+log() {
+	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*" >>/var/log/natmap/natmap.log
+	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*"
+}
 
-# # 判断是否开启高级功能
-# if [ "${NOTIFY_ADVANCED_ENABLE}" == 1 ]; then
-#     # 获取最大重试次数
-#     max_retries=$NOTIFY_ADVANCED_MAX_RETRIES
-#     # 获取休眠时间
-#     sleep_time=$NOTIFY_ADVANCED_SLEEP_TIME
-# fi
+attempt=0
+while :; do
+	attempt=$((attempt + 1))
 
-while (true); do
+	# 检查 HTTP 状态码而非仅 curl 退出码：服务端返回 4xx/5xx 时
+	# curl 退出码仍为 0，旧写法会把失败误判为"发送成功"而不再重试
+	resp=$(curl -s -m 15 -w '\n%{http_code}' -X POST -H "Content-Type: multipart/form-data" -F "token=$token" -F "title=$title" -F "message=$message" -F "priority=$priority" "$gotify_url/message")
+	rc=$?
+	status="${resp##*$'\n'}"
+	body="${resp%$'\n'*}"
+	detail="${body:0:200}"
+	[ -n "$detail" ] || detail="curl 退出码 ${rc}, 无响应体"
 
-    # 检查 HTTP 状态码而非仅 curl 退出码：服务端返回 4xx/5xx 时
-    # curl 退出码仍为 0，旧写法会把失败误判为"发送成功"而不再重试
-    status=$(curl -s -m 15 -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: multipart/form-data" -F "token=$token" -F "title=$title" -F "message=$message" -F "priority=$priority" "$gotify_url/message")
-    if [ "$status" = "200" ]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 发送成功" >>/var/log/natmap/natmap.log
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 发送成功"
-        break
-    fi
+	if [ "$status" = "200" ] || [ "$status" = "201" ]; then
+		log "发送成功(第 ${attempt} 次尝试)"
+		exit 0
+	fi
 
-    # 检测剩余重试次数
-    let retry_count++
-    if [ $retry_count -lt $max_retries ] || [ $max_retries -eq 0 ]; then
-        echo "$NOTIFY_MODE 登录失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
-        sleep $sleep_time
-    else
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 达到最大重试次数，无法通知" >>/var/log/natmap/natmap.log
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 达到最大重试次数，无法通知"
-        break
-    fi
+	case "$status" in
+	429)
+		# 服务端限流：按配置间隔重试（脚本未取响应头，不解析 Retry-After）
+		wait_s="$sleep_time"
+		;;
+	4??)
+		# 其余 4xx 是请求本身的问题（地址 / token / 消息格式），重试不会成功
+		log "请求被拒绝(HTTP ${status}), 不再重试: ${detail}"
+		exit 1
+		;;
+	*)
+		# 5xx / 000(连接失败、DNS 未就绪、超时) —— 可重试
+		wait_s="$sleep_time"
+		;;
+	esac
+
+	[ "$wait_s" -gt 60 ] 2>/dev/null && wait_s=60
+
+	if [ "$max_attempts" != 0 ] && [ "$attempt" -ge "$max_attempts" ]; then
+		log "达到最大尝试次数(${max_attempts}), 发送失败: HTTP ${status} ${detail}"
+		exit 1
+	fi
+
+	log "第 ${attempt} 次发送失败(HTTP ${status}), ${wait_s} 秒后重试: ${detail}"
+	sleep "$wait_s"
 done
-
-# # Check if maximum retries reached
-# if [ $retry_count -eq $max_retries ]; then
-#     echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 达到最大重试次数，无法通知" >>/var/log/natmap/natmap.log
-#     echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 达到最大重试次数，无法通知"
-#     exit 1
-# else
-#     echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 发送成功" >>/var/log/natmap/natmap.log
-#     echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $NOTIFY_MODE 发送成功"
-#     exit 0
-# fi
