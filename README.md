@@ -67,33 +67,6 @@ apk add --allow-untrusted --upgrade ./luci-app-natmap-*.apk             # 升级
 
 > 包未经 OpenWrt 官方签名，必须加 `--allow-untrusted`。需先装好 `natmap`，否则会因缺少依赖被拒绝安装。
 
-## 🤖 手动编译发布（GitHub Actions）
-
-`.github/workflows/build.yml` 用 OpenWrt SDK 在 GitHub 上编译 apk 并可发布 Release，无需本地编译环境。**仅手动触发**：
-
-| 操作 | 行为 |
-|---|---|
-| Actions → Build & Release Packages → Run workflow | 按根目录 `Makefile` 的 `PKG_VERSION` / `PKG_RELEASE` 编译，并创建 / 更新对应 `v<版本>-r<修订>` Release |
-| 同上，`version` 填具体版本号 | 用指定 `PKG_VERSION` 打标签、发版 |
-| 同上，`release` 填修订号（如 `2`） | 用指定 `PKG_RELEASE` 打标签、发版；修 bug 只升修订号也能发新版 |
-| 同上，勾选 `force` | 即使该版本标签已存在也重新编译，并覆盖 Release 资产 |
-
-产物为两个架构无关包：`luci-app-natmap-<版本>-r<修订>.apk`（本体）与 `luci-i18n-natmap-zh-cn-<版本>-r<修订>.apk`（简体中文）。
-
-如需 ipk（OpenWrt 24.10 及更早），把 workflow 顶部的 `SDK_ARCH` 改为 `x86_64-24.10.7`，并把收集产物时的 `.apk` 换成 `.ipk`。CI 包默认未签名，在仓库 Secrets 里配置 `PRIVATE_KEY` 后会自动签名。
-
-### 版本号与发版约定
-
-包的完整版本号 = `PKG_VERSION`-`PKG_RELEASE`（如 `1.5.10-r2`），对应标签 `v<PKG_VERSION>-r<PKG_RELEASE>`：
-
-| 改动类型 | 怎么做 |
-|---|---|
-| 修 bug / 调整已安装文件 | 只升 `PKG_RELEASE`（如 `1` → `2`），`PKG_VERSION` 不动 |
-| 新增功能 / 跟进上游版本 | 升 `PKG_VERSION`，并把 `PKG_RELEASE` 重置为 `1` |
-| 只改文档 / CI | 不动版本号 |
-
-标签带上 `-r` 是为了让「只升修订号」也能产出新标签、发出新版本，不必为发版强推 `PKG_VERSION`。
-
 ## 📦 功能总览（继承自原版）
 
 - **第三方服务联动**（打洞成功后自动调用）：qBittorrent、Transmission、Emby、Cloudflare（Origin Rules / Redirect Rules / DDNS）
