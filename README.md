@@ -40,20 +40,29 @@ natmap 核心使用官方最新 **20260214**（与 OpenWrt 25.12 官方 feed 同
 
 ## 🚀 编译与安装
 
-本仓库为**单包扁平布局**：仓库根目录即包本体，**不能**用 `feeds.conf` 的 `src-git` 添加（feed 只识别根目录下的一级子目录），请按包目录克隆进 OpenWrt 源码：
+本仓库为**单包扁平布局**：仓库根目录即包本体。
+
+### 编译 apk（OpenWrt SDK 单包编译，与 Releases 产物同一方式）
+
+在**已解压的 OpenWrt SDK 目录内**执行（本包 `PKGARCH:=all`，与 SDK 的架构无关；下面以 25.12 系 SDK 为例）：
 
 ```sh
+# 1. 克隆本包到 SDK 的 package/ 目录
 git clone https://github.com/hahaher123/luci-app-natmap.git package/luci-app-natmap
-```
 
-```sh
+# 2. 取回 feed，只编译本包（翻译包与主包定义在同一目录，会一并产出）
 ./scripts/feeds update -a
 ./scripts/feeds install -a
-make menuconfig    # 勾选 Network → natmap / luci-app-natmap
-make -j$(nproc)
+make defconfig
+make package/luci-app-natmap/compile V=s -j$(nproc)
+
+# 3. 产物
+find bin/packages -name '*.apk'
 ```
 
-依赖：`+natmap +jq +curl +openssl-util +bash`。其中 `natmap` 本体由 OpenWrt 官方 feed 提供，本仓库不含。建议编译固件时一并集成。
+> 扁平布局**不能**用 `feeds.conf` 的 `src-git` 添加——feed 只识别根目录下的一级子目录，仓库根目录自身的 `Makefile` 不算一个包，所以必须按目录克隆；若改用 `src-link` 挂载，需先把仓库放进一个空目录、再让 `src-link` 指向**那个目录**，否则同样扫不到。
+
+依赖：`+natmap +jq +curl +openssl-util +bash`。其中 `natmap` 本体由 OpenWrt 官方 feed 提供，本仓库不含；编译本包时它作为依赖会被顺带编出（架构相关，不属于本仓库产物）。若要随固件一起编译，在 OpenWrt 源码树里同样克隆到 `package/luci-app-natmap`，`make menuconfig` 勾选 `LuCI → 3. Applications → luci-app-natmap` 即可。
 
 ### 直接安装预编译包（apk，OpenWrt 25.12+）
 
