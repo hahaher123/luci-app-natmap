@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-natmap
 PKG_VERSION:=1.5.10
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 LUCI_TITLE:=LuCI Support for natmap
 LUCI_DEPENDS:=+natmap +jq +curl +openssl-util +bash
@@ -15,6 +15,15 @@ PKG_MAINTAINER:=Richard Yu <yurichard3839@gmail.com>
 define Package/${PKG_NAME}/conffiles
 /etc/config/natmap
 endef
+
+# 翻译包（luci-i18n-natmap-*）的版本号。
+#
+# luci.mk 默认用 PKG_PO_VERSION 给翻译包定版，它由「最后一次改动 po/ 的提交」推导而来
+# （形如 26.258.10506~e205b93，见 luci.mk 里的 findrev），与 PKG_VERSION/PKG_RELEASE 无关，
+# 结果是翻译包文件名和应用包对不上，用户按 Release 说明也拼不出来。
+# luci.mk 中该变量声明为 `PKG_PO_VERSION?=`（可被覆盖），这里显式钉成与应用包同一版本，
+# 使翻译包同样产出 luci-i18n-natmap-zh-cn-<PKG_VERSION>-r<PKG_RELEASE>.apk。
+PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
