@@ -7,11 +7,19 @@ name: Build & Release Packages
 # 产物：OpenWrt 25.12（apk 包格式）
 #   luci-app-natmap-<ver>-r<rel>.apk        界面与脚本，PKGARCH=all，架构无关
 #   luci-i18n-natmap-zh-cn                 简体中文翻译，架构无关
+#
+# tag 规则：v<PKG_VERSION>-r<PKG_RELEASE>，与包的完整版本一一对应。
+#   PKG_VERSION 不变、只升 PKG_RELEASE（修 bug / 改安装产物）也会得到新 tag，
+#   因此无需为了发新版而强行推 PKG_VERSION。详见仓库根目录 README 的版本号约定。
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '要发布的版本号（不含 v 前缀；留空则读取 Makefile 中的 PKG_VERSION）'
+        description: 'PKG_VERSION（不含 v 前缀；留空则读取 Makefile）'
+        required: false
+        type: string
+      release:
+        description: 'PKG_RELEASE（纯数字，如 2；留空则读取 Makefile）。修 bug 只升 PKG_RELEASE 即可发新版'
         required: false
         type: string
       force:
@@ -59,24 +67,37 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RELEASE: ${{ inputs.release }}
           FORCE: ${{ inputs.force }}
         run: |
           set -eu
 
           if [ "$REF_TYPE" = "tag" ]; then
+            # 由 tag 触发：tag 名即版本，形如 v1.5.10-r2
             TAG="$REF_NAME"
             NEED_TAG=false
           else
             if [ -n "${INPUT_VERSION}" ]; then
-              VERSION="$INPUT_VERSION"
+              VERSION="${INPUT_VERSION#v}"
             else
               VERSION="$(sed -n 's/^PKG_VERSION:=//p' "$PKG_MAKEFILE" | head -n 1)"
+            fi
+            if [ -n "${INPUT_RELEASE}" ]; then
+              RELEASE="${INPUT_RELEASE#r}"
+            else
+              RELEASE="$(sed -n 's/^PKG_RELEASE:=//p' "$PKG_MAKEFILE" | head -n 1)"
             fi
             if [ -z "$VERSION" ]; then
               echo "::error::无法从 $PKG_MAKEFILE 读取 PKG_VERSION"
               exit 1
             fi
-            TAG="v${VERSION}"
+            if [ -z "$RELEASE" ]; then
+              echo "::error::无法从 $PKG_MAKEFILE 读取 PKG_RELEASE"
+              exit 1
+            fi
+            # 完整包版本 = PKG_VERSION-PKG_RELEASE。tag 必须带上 -r，
+            # 否则修 bug 只升 PKG_RELEASE 时 tag 不变、会被当成「版本没动」跳过。
+            TAG="v${VERSION}-r${RELEASE}"
             NEED_TAG=true
           fi
 
@@ -84,7 +105,7 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "tag ${TAG} 已存在"
             if [ "$NEED_TAG" = "true" ] && [ "$FORCE" != "true" ]; then
-              echo "版本号未变动，跳过本次构建（如需重建请手动触发并勾选 force）"
+              echo "tag ${TAG} 已存在（PKG_VERSION 与 PKG_RELEASE 均未变），跳过本次构建（如需重建请勾选 force）"
               BUILD=false
             fi
           fi

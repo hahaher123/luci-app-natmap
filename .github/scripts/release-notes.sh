@@ -3,7 +3,7 @@
 # 生成 GitHub Release 的标题与说明（供 .github/workflows/build.yml 调用）
 #
 # 用法: release-notes.sh <tag> [dist-dir] [out-dir]
-#   <tag>      本次发布的 tag，例如 v1.5.10
+#   <tag>      本次发布的 tag，例如 v1.5.10-r2
 #   [dist-dir] 编译产物目录，用于列出本次附加的包，默认 dist
 #   [out-dir]  写出 release-title.txt / release-body.md 的目录，默认当前目录
 #
@@ -66,10 +66,10 @@ printf '%s: %s\n' "${TAG}" "${FIRST}" >"${OUT}/release-title.txt"
 	echo
 	echo '```sh'
 	echo '# 包为自行编译、未经 OpenWrt 官方签名，必须加 --allow-untrusted'
-	echo 'apk add --allow-untrusted ./luci-app-natmap-<版本>.apk'
+	echo 'apk add --allow-untrusted ./luci-app-natmap-<版本>-r<修订>.apk'
 	echo
 	echo '# 需要中文界面时再装翻译包（安装后自动切到对应语言）'
-	echo 'apk add --allow-untrusted ./luci-i18n-natmap-zh-cn-<版本>.apk'
+	echo 'apk add --allow-untrusted ./luci-i18n-natmap-zh-cn-<版本>-r<修订>.apk'
 	echo
 	echo '# 升级已安装的版本'
 	echo 'apk add --allow-untrusted --upgrade ./luci-app-natmap-*.apk'
