@@ -1,40 +1,31 @@
 # luci-app-natmap（维护分支）
 
-> 本仓库是 [uvswifft/openwrt-natmap](https://github.com/uvswifft/openwrt-natmap)（原作者，**已归档**）的维护分支。
-> 在完全继承原作者设计、功能与 Apache-2.0 许可的前提下，针对新版 OpenWrt 与新版 qBittorrent 做了适配与新增。
-> **感谢原作者**及上游 [EkkoG/luci-app-natmap](https://github.com/EkkoG/luci-app-natmap)、[heiher/natmap](https://github.com/heiher/natmap) 的工作。
+> [uvswifft/openwrt-natmap](https://github.com/uvswifft/openwrt-natmap)（原作者，**已归档**）的维护分支：在继承原作者设计、功能与 Apache-2.0 许可的前提下，适配新版 OpenWrt 与新版 qBittorrent。感谢原作者及上游 [EkkoG/luci-app-natmap](https://github.com/EkkoG/luci-app-natmap)、[heiher/natmap](https://github.com/heiher/natmap)。
 
 ## ⚠️ 重要提示
 
-- 原仓库 `uvswifft/openwrt-natmap` 已归档停更，本仓库独立维护，不保证与上游同步。
-- **仅在公网 IP / NAT1（Full Cone）环境下有效**：运营商大范围 NAT4 后打洞基本失效，请先确认宽带类型。
-- 面向 OpenWrt 23.0+ / luci2 / golang≥1.20，以 **OpenWrt 25.12** 为基准测试。
+- 原仓库已归档停更，本仓库独立维护，不保证与上游同步。
+- **仅在公网 IP / NAT1（Full Cone）环境下有效**，请先确认宽带类型。
+- 以 **OpenWrt 25.12** 为基准测试，面向 23.0+ / luci2 / golang≥1.20。
 - 本人不会编程，改动由 AI 完成，仅供个人使用。
 
-## ✨ 本分支改动一览
+## ✨ 本分支改动
 
 相对原作者版本的修复与新增。
 
-### 修复
-
-| 项目 | 作用 |
-|---|---|
-| qBittorrent 端口联动 | 兼容 4.3+ / 5.x（含 5.2.x）；密码含特殊字符也能登录并修改监听端口 |
-| Transmission / Emby 联动 | 凭据含特殊字符不再登录失败，不再因状态码判断错误而无限重试 |
-| Cloudflare 联动 | DDNS 与跳转规则更新恢复正常；记录不存在时给出明确提示，不再无效重试 |
-| 防火墙 IPv6 放行 | 放行规则恢复生效，放行端口不再误用 IPv4 目标端口 |
-| 接口绑定 | 不再覆盖 WAN 接口、导致打洞失效 |
-| 通知插件 | 含引号、换行、`&`、`=` 的消息能正常发送；服务端报错不再误报「成功」，并会自动重试 |
-| 脚本健壮性 | 统一请求超时；避免并发写 uci / 防火墙冲突；配置值含空格不再损坏环境变量 |
-| 默认 STUN 服务器 | 由已停服的地址改为可用的 `stun.cloudflare.com`（仅影响新安装） |
-
-### 新增
-
-| 项目 | 作用 |
-|---|---|
-| 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动、不阻塞打洞 |
-| 断网自恢复 | 长时间断网不再使实例永久停摆，网络恢复后自动重新打洞 |
-| 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
+| 类型 | 项目 | 作用 |
+|---|---|---|
+| 修复 | qBittorrent 端口联动 | 兼容 4.3+ / 5.x；密码含特殊字符也能登录并修改监听端口 |
+| 修复 | Transmission / Emby 联动 | 凭据含特殊字符不再登录失败，不再无限重试 |
+| 修复 | Cloudflare 联动 | DDNS 与跳转规则更新恢复正常，记录不存在时给出明确提示 |
+| 修复 | 防火墙 IPv6 放行 | 放行规则恢复生效，不再误用 IPv4 目标端口 |
+| 修复 | 接口绑定 | 不再覆盖 WAN 接口、导致打洞失效 |
+| 修复 | 通知插件 | 含 `&`、引号、换行的消息可正常发送；服务端报错不再误报「成功」并自动重试 |
+| 修复 | 脚本健壮性 | 统一请求超时；不再并发写 uci / 防火墙冲突 |
+| 修复 | 默认 STUN 服务器 | 改为可用的 `stun.cloudflare.com`（仅影响新安装） |
+| 新增 | 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动 |
+| 新增 | 断网自恢复 | 长时间断网不再永久停摆，网络恢复后自动重新打洞 |
+| 新增 | 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
 
 natmap 核心使用官方最新 **20260214**（与 OpenWrt 25.12 官方 feed 同版本）。
 
@@ -44,109 +35,91 @@ natmap 核心使用官方最新 **20260214**（与 OpenWrt 25.12 官方 feed 同
 
 ### 编译 apk（OpenWrt SDK 单包编译，与 Releases 产物同一方式）
 
-在**已解压的 OpenWrt SDK 目录内**执行（本包 `PKGARCH:=all`，与 SDK 的架构无关；下面以 25.12 系 SDK 为例）：
+在**已解压的 OpenWrt SDK 目录内**执行（本包 `PKGARCH:=all`，与 SDK 架构无关）：
 
 ```sh
-# 1. 克隆本包到 SDK 的 package/ 目录
 git clone https://github.com/hahaher123/luci-app-natmap.git package/luci-app-natmap
-
-# 2. 取回 feed，只编译本包（翻译包与主包定义在同一目录，会一并产出）
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 make defconfig
 make package/luci-app-natmap/compile V=s -j$(nproc)
 
-# 3. 产物
-find bin/packages -name '*.apk'
+find bin/packages -name '*.apk'   # 产物：主包 + 中文翻译包
 ```
 
-> 扁平布局**不能**用 `feeds.conf` 的 `src-git` 添加——feed 只识别根目录下的一级子目录，仓库根目录自身的 `Makefile` 不算一个包，所以必须按目录克隆；若改用 `src-link` 挂载，需先把仓库放进一个空目录、再让 `src-link` 指向**那个目录**，否则同样扫不到。
+> 扁平布局**不能**用 `feeds.conf` 的 `src-git`——feed 只识别根目录下的一级子目录，仓库根目录自身的 `Makefile` 不算一个包。
 
-依赖：`+natmap +jq +curl +openssl-util +bash`。其中 `natmap` 本体由 OpenWrt 官方 feed 提供，本仓库不含；编译本包时它作为依赖会被顺带编出（架构相关，不属于本仓库产物）。若要随固件一起编译，在 OpenWrt 源码树里同样克隆到 `package/luci-app-natmap`，`make menuconfig` 勾选 `LuCI → 3. Applications → luci-app-natmap` 即可。
+依赖 `+natmap +jq +curl +openssl-util +bash`。`natmap` 本体由官方 feed 提供，编译时会作为依赖被顺带编出（架构相关，不属于本仓库产物）。若要随固件一起编译，同样克隆到 `package/luci-app-natmap`，勾选 `LuCI → 3. Applications → luci-app-natmap`。
 
 ### 直接安装预编译包（apk，OpenWrt 25.12+）
 
 下载 [Releases](https://github.com/hahaher123/luci-app-natmap/releases) 里编译好的 apk（`PKGARCH:=all`，任何架构可用）：
 
 ```sh
-apk add --allow-untrusted ./luci-app-natmap-<版本>-r<修订>.apk
-apk add --allow-untrusted ./luci-i18n-natmap-zh-cn-<版本>-r<修订>.apk   # 中文界面
-apk add --allow-untrusted --upgrade ./luci-app-natmap-*.apk             # 升级
+apk add --allow-untrusted --force-overwrite ./luci-app-natmap-<版本>-r<修订>.apk
+apk add --allow-untrusted --force-overwrite ./luci-i18n-natmap-zh-cn-<版本>-r<修订>.apk   # 中文界面
+apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk             # 升级
 ```
 
-> 包未经 OpenWrt 官方签名，必须加 `--allow-untrusted`。需先装好 `natmap`，否则会因缺少依赖被拒绝安装。
+> 包未经官方签名，必须加 `--allow-untrusted`；需先装好 `natmap`，否则会因缺少依赖被拒绝安装。
+> 本包与官方 `natmap` 包同名提供 `/etc/config/natmap` 与 `/etc/init.d/natmap`，必须加 `--force-overwrite` 覆盖，否则 apk 报文件冲突拒绝安装。
 
 ## 📦 功能总览（继承自原版）
 
-- **第三方服务联动**（打洞成功后自动调用）：qBittorrent、Transmission、Emby、Cloudflare（Origin Rules / Redirect Rules / DDNS）
-- **消息通知**：Telegram Bot / PushPlus / Server酱 / Gotify
-- **端口转发**：natmap 转发 / OpenWrt firewall DNAT 转发 / iKuai 端口映射
-- **自定义脚本**：打洞成功后执行自定义脚本（本分支的防火墙端口同步功能即基于此实现）
+打洞成功后自动联动的第三方服务：qBittorrent / Transmission / Emby / Cloudflare（Origin Rules、Redirect Rules、DDNS）；消息通知：Telegram Bot / PushPlus / Server酱 / Gotify；端口转发：natmap / 防火墙 DNAT / iKuai 端口映射；自定义脚本。
 
 ## ⚙️ 配置
 
-入口：LuCI → 服务 → NATMap。常用项：
+入口：LuCI → 服务 → NATMap。
 
 | 配置项 | 说明 |
 |---|---|
 | `general_wan_interface` | WAN 接口名（如 `wan`） |
-| `general_wait_network` / `general_wait_network_timeout` | 是否等待网络就绪（默认 `1`）及最长等待秒数（默认 `120`）；超时后照常启动 |
+| `general_wait_network` / `general_wait_network_timeout` | 是否等待网络就绪（默认 `1`）及最长等待秒数（默认 `120`） |
 | `general_nat_protocol` / `general_ip_address_family` | `tcp` / `udp`；`ipv4` / `ipv6`（留空为双栈） |
-| `general_interval` | keepalive 间隔（秒） |
-| `general_stun_server` | STUN 服务器（默认 `stun.cloudflare.com`） |
-| `general_http_server` | HTTP 打洞服务器（TCP 模式使用） |
-| `general_bind_port` | 绑定端口（单端口或范围） |
+| `general_interval` / `general_stun_server` | keepalive 间隔（秒）；STUN 服务器（默认 `stun.cloudflare.com`） |
+| `general_http_server` / `general_bind_port` | HTTP 打洞服务器（TCP 模式）；绑定端口（单端口或范围） |
 
-联动相关配置项由 `link_mode` 选择（`qbittorrent` / `transmission` / `emby` / `cloudflare_*`），各项含义见 LuCI 页面内说明。
+联动配置项由 `link_mode` 选择（`qbittorrent` / `transmission` / `emby` / `cloudflare_*`），各项含义见 LuCI 页面内说明。
 
-### 防火墙端口同步
-
-开启「自定义脚本」并指向本仓库内置脚本：
+**防火墙端口同步**：开启「自定义脚本」并指向内置脚本，默认写入规则 `nas_incoming_5` 的 `dest_port`。
 
 ```sh
 uci set natmap.@natmap[0].custom_script_enable=1
 uci set natmap.@natmap[0].custom_script_path=/usr/share/natmap/plugin-link/firewall_nas.sh
-uci commit natmap
-/etc/init.d/natmap restart
+uci commit natmap && /etc/init.d/natmap restart
 ```
 
-默认写入防火墙规则 `nas_incoming_5` 的 `dest_port`（目标 IPv6 为空，即放行整个局域网的目标端口）。如需调整，编辑脚本顶部的 `RULE_NAME` / `RULE_DEST_IP` / `SYNC_PROTO`。
+如需调整，编辑脚本顶部的 `RULE_NAME` / `RULE_DEST_IP` / `SYNC_PROTO`。
 
-### Cloudflare Redirect Rules
+**Cloudflare Redirect Rules**：入口域名开橙云代理，跳转目标域名需为 DNS-only（灰云，解析到家宽公网 IP）；目标 URL 的端口位置用 `NEW_PORT` 占位，规则名需与控制台一致。
 
-入口域名需在 Cloudflare 开启代理（橙云），跳转目标域名需为 DNS-only（灰云，解析到家宽公网 IP）。目标 URL 的**端口位置**用 `NEW_PORT` 占位，规则名需与控制台创建的规则名一致。
-
-跳转链路：`https://入口域名`（橙云）→ 302 → `http://ddns域名:打洞端口`（灰云直连）→ 路由器 DNAT → 内网服务。
+链路：`https://入口域名`（橙云）→ 302 → `http://ddns域名:打洞端口`（灰云直连）→ 路由器 DNAT → 内网服务。
 
 ## 📁 目录结构
 
 ```text
 Makefile                        # 包定义
 htdocs/…/view/natmap/natmap.js  # LuCI2 前端
-po/                             # 翻译（en 英文原文 / zh_Hans 简体中文）
-root/etc/config/natmap          # 默认配置模板
-root/etc/init.d/natmap          # procd 服务
-root/usr/share/natmap/          # update.sh 回调入口 + link/forward/notify + plugin-*
+po/                             # 翻译（en / zh_Hans）
+root/etc/{config,init.d}/natmap # 默认配置模板 + procd 服务
+root/usr/share/natmap/          # 回调入口 + link/forward/notify + plugin-*
 .github/                        # 手动编译 workflow 与 Release 说明脚本
 ```
 
-> natmap 核心程序不在此仓库内，由 OpenWrt 官方 feed（`packages/net/natmap`）提供。
+> natmap 核心程序不在此仓库内，由官方 feed（`packages/net/natmap`）提供。
 
 ## 🛠 常见问题
 
 | 问题 | 排查 |
 |---|---|
 | 打洞失败 / 一直重试 | 确认宽带是公网 IP / NAT1；更换 STUN 服务器测试 |
-| 开机后一直没有打洞 | 日志若停在「等待网络就绪」，说明 WAN 未就绪或 STUN 探测不通过（ICMP 被上游屏蔽时属误判），超时后仍会照常启动；可临时设 `general_wait_network=0` 排除探测影响 |
-| qB 端口改不动 | 核对 `link_qb_web_url` 与 qB 实际地址；域名访问需加入 qB 域名白名单；看 `/var/log/natmap/natmap.log` |
-| 防火墙规则未更新 | 确认 `custom_script_enable=1`，且脚本路径指向的文件真实存在 |
+| 开机后一直没有打洞 | 日志停在「等待网络就绪」即 WAN 未就绪或 STUN 探测不通过，超时后仍会启动；可临时设 `general_wait_network=0` |
+| qB 端口改不动 | 核对 `link_qb_web_url`；域名访问需加入 qB 域名白名单；看 `/var/log/natmap/natmap.log` |
 | 服务起不来 `validation failed` | `custom_script_path` 指向的文件必须存在 |
-| Cloudflare 联动一直重试失败 | 规则名需与 `link_cloudflare_redirect_rule_name` 一致，且需先在控制台创建 |
-| Cloudflare DDNS 提示「未找到记录」 | 记录需先在控制台手动创建，脚本只更新不创建 |
-| IPv6 能连接但下载器无响应 | 开启下载器的「允许 IPv6」，并填好 `link_qb_ipv6_address` / `link_tr_ipv6_address` |
-| `feeds install` 找不到本包 | 扁平布局不能用 `src-git`，请克隆到 `package/luci-app-natmap` |
+| Cloudflare 联动失败 | 规则名需与 `link_cloudflare_redirect_rule_name` 一致且已存在；DDNS 记录只更新不创建 |
+| IPv6 能连接但下载器无响应 | 开启下载器「允许 IPv6」，并填好 `link_qb_ipv6_address` / `link_tr_ipv6_address` |
 
-## 📄 许可与致谢
+## 📄 许可
 
-- 本仓库继承原版许可：**Apache-2.0**（luci-app-natmap）与 **MIT**（natmap 核心）。
-- 上游引用：[uvswifft/openwrt-natmap](https://github.com/uvswifft/openwrt-natmap)（原作者，已归档）、[EkkoG/luci-app-natmap](https://github.com/EkkoG/luci-app-natmap)、[EkkoG/openwrt-natmap](https://github.com/EkkoG/openwrt-natmap)、[heiher/natmap](https://github.com/heiher/natmap)（natmap 核心程序）。
+继承原版许可：**Apache-2.0**（luci-app-natmap）、**MIT**（natmap 核心）。上游：[uvswifft/openwrt-natmap](https://github.com/uvswifft/openwrt-natmap)（已归档）、[EkkoG/luci-app-natmap](https://github.com/EkkoG/luci-app-natmap)、[EkkoG/openwrt-natmap](https://github.com/EkkoG/openwrt-natmap)、[heiher/natmap](https://github.com/heiher/natmap)。
