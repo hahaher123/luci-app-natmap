@@ -22,7 +22,7 @@
 | 修复 | 接口绑定 | 不再覆盖 WAN 接口、导致打洞失效 |
 | 修复 | 通知插件 | 含 `&`、引号、换行的消息可正常发送；服务端报错不再误报「成功」并自动重试 |
 | 修复 | 脚本健壮性 | 统一请求超时；不再并发写 uci / 防火墙冲突 |
-| 修复 | 默认 STUN 服务器 | 改为可用的 `stun.cloudflare.com`（仅影响新安装） |
+| 修复 | 默认 STUN 服务器 | 改为官方 `natmap` 包的默认值 `stunserver.stunprotocol.org`（仅影响新安装） |
 | 新增 | 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动 |
 | 新增 | 断网自恢复 | 长时间断网不再永久停摆，网络恢复后自动重新打洞 |
 | 新增 | 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
@@ -80,7 +80,7 @@ apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk   
 | `general_wan_interface` | WAN 接口名（如 `wan`） |
 | `general_wait_network` / `general_wait_network_timeout` | 是否等待网络就绪（默认 `1`）及最长等待秒数（默认 `120`） |
 | `general_nat_protocol` / `general_ip_address_family` | `tcp` / `udp`；`ipv4` / `ipv6`（留空为双栈） |
-| `general_interval` / `general_stun_server` | keepalive 间隔（秒）；STUN 服务器（默认 `stun.cloudflare.com`） |
+| `general_interval` / `general_stun_server` | keepalive 间隔（秒）；STUN 服务器（默认 `stunserver.stunprotocol.org`） |
 | `general_http_server` / `general_bind_port` | HTTP 打洞服务器（TCP 模式）；绑定端口（单端口或范围） |
 
 联动配置项由 `link_mode` 选择（`qbittorrent` / `transmission` / `emby` / `cloudflare_*`），各项含义见 LuCI 页面内说明。
