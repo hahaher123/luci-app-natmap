@@ -14,26 +14,14 @@ if [ ! -z "$MSG_OVERRIDE" ]; then
 	msg="$MSG_OVERRIDE"
 fi
 
-# 设置重试次数和时间间隔
-# 打洞成功的映射变化只触发一次，通知失败不会被重发，因此默认必须留出重试窗口：
-# PPPoE 重拨后 DNS / 上游代理可能尚未就绪，单次尝试失败就放弃等于直接丢通知。
-# 0 表示不限次数（沿用高级设置的语义）。
-max_retries=5
-sleep_time=3
-
-# 判断是否开启高级功能
-if [ "${NOTIFY_ADVANCED_ENABLE}" == 1 ]; then
-	max_retries="${NOTIFY_ADVANCED_MAX_RETRIES:-5}"
-	sleep_time="${NOTIFY_ADVANCED_SLEEP_TIME:-3}"
-fi
-
-# 数值兜底：配置为空或含非数字时回落到默认值，避免插件里算术比较报错
-case "$max_retries" in
-'' | *[!0-9]*) max_retries=5 ;;
-esac
-case "$sleep_time" in
-'' | *[!0-9]*) sleep_time=3 ;;
-esac
+# 设置重试次数和时间间隔：固定 10 次 / 5 秒，不再提供「高级设置」开关。
+#
+# 打洞成功的映射变化只触发一次，通知失败不会被重发，因此必须留出足够的重试窗口：
+# PPPoE 重拨 / 路由器重启后 DNS 与上游代理可能尚未就绪，单次尝试失败就等于直接丢通知
+# （这正是当初「3 次打洞只收到 2 条」的成因）。最长约 45 秒；发送成功即停，
+# 不会拖慢正常路径。
+max_retries=10
+sleep_time=5
 
 # notify_mode 判断
 notify_script=""

@@ -14,6 +14,30 @@ retry_count=0
 dns_type=$LINK_CLOUDFLARE_DDNS_TYPE
 dns_record_id=""
 
+# 只写日志文件。本脚本里 get_dns_record_id / update_dns_record 都用 stdout 返回结果，
+# 日志不能走 stdout，否则会污染返回值。
+function log_file() {
+  echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE $*" >>/var/log/natmap/natmap.log
+}
+
+# 失败原因描述。优先报 curl 退出码 —— 传输层失败时响应体是空的，
+# 只看 jq '.errors' 会得到空串，无从定因。
+# 退出码速查：6=域名解析失败 7=连接被拒 28=超时 35=TLS 握手失败 60=证书校验失败
+function describe_failure() {
+  local body="$1"
+  local rc="$2"
+
+  if [ "$rc" -ne 0 ]; then
+    printf 'curl 退出码 %s, 无响应体' "$rc"
+  elif [ -z "$body" ]; then
+    printf '响应为空'
+  elif ! printf '%s' "$body" | jq -e . >/dev/null 2>&1; then
+    printf '响应非 JSON(前160字符): %s' "$(printf '%s' "$body" | tr '\n\r\t' '   ' | cut -c1-160)"
+  else
+    printf 'CF 返回: %s' "$(printf '%s' "$body" | jq -c '{success: .success, errors: .errors}' 2>/dev/null)"
+  fi
+}
+
 # 获取dns_record_id
 # @param {string} local_ddns_domain - The domain name
 # @param {string} local_dns_types - The DNS record type
@@ -22,18 +46,25 @@ function get_dns_record_id() {
   local local_ddns_domain="$1"
   local local_dns_types="$2"
   local local_dns_record_id=""
+  local local_dns_record=""
+  local local_rc=0
 
   # 获取cloudflare dns记录的dns_record
-  local local_dns_record=$(curl -m 20 --request GET \
+  local_dns_record=$(curl -m 20 --request GET \
     --url "https://api.cloudflare.com/client/v4/zones/$LINK_CLOUDFLARE_ZONE_ID/dns_records?name=$local_ddns_domain&type=$local_dns_types" \
     --header "Authorization: Bearer $LINK_CLOUDFLARE_TOKEN" \
-    --header "Content-Type: application/json")
+    --header "Content-Type: application/json" 2>/dev/null)
+  local_rc=$?
 
   # 判断是否成功获取响应
-  if [ "$(echo "$local_dns_record" | jq '.success' | sed 's/"//g')" == "true" ]; then
-    # 获取与dns_type匹配的dns_record_id
-    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
-    local_dns_record_id=$(echo "$local_dns_record" | jq ".result[0].id" | sed 's/"//g')
+  if [ "$(printf '%s' "$local_dns_record" | jq -r '.success' 2>/dev/null)" == "true" ]; then
+    log_file "登录成功"
+    # // empty：记录不存在时 .result 是空数组，jq 会把字面量 "null" 输出来，
+    # 那会让调用方的 [ -z "$dns_record_id" ] 判断失效，转而向 .../dns_records/null 发无效 PUT
+    local_dns_record_id=$(printf '%s' "$local_dns_record" | jq -r '.result[0].id // empty' 2>/dev/null)
+  else
+    # 失败时静默会让调用方只看到"未找到记录"，分不清是 API 不通还是记录真的不存在
+    log_file "获取 $local_dns_types 记录($local_ddns_domain)失败: $(describe_failure "$local_dns_record" "$local_rc")"
   fi
 
   # 返回dns记录的id
@@ -110,18 +141,22 @@ function generate_request_data() {
 function update_dns_record() {
   local local_dns_record_id="$1"
   local local_request_data="$2"
-  local local_result=$(
-    curl -m 20 --request PUT \
-      --url "https://api.cloudflare.com/client/v4/zones/$LINK_CLOUDFLARE_ZONE_ID/dns_records/$local_dns_record_id" \
-      --header "Authorization: Bearer $LINK_CLOUDFLARE_TOKEN" \
-      --header "Content-Type: application/json" \
-      --data "$local_request_data"
-  )
+  local local_result=""
+  local local_rc=0
+
+  local_result=$(curl -m 20 --request PUT \
+    --url "https://api.cloudflare.com/client/v4/zones/$LINK_CLOUDFLARE_ZONE_ID/dns_records/$local_dns_record_id" \
+    --header "Authorization: Bearer $LINK_CLOUDFLARE_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data "$local_request_data" 2>/dev/null)
+  local_rc=$?
 
   # 判断api是否调用成功,返回参数success是否为true
-  if [ "$(echo "$local_result" | jq '.success' | sed 's/"//g')" == "true" ]; then
+  if [ "$(printf '%s' "$local_result" | jq -r '.success' 2>/dev/null)" == "true" ]; then
     echo "true"
   else
+    # 诊断只落日志文件，本函数的 stdout 是返回值
+    log_file "提交 DNS 记录失败($local_dns_record_id): $(describe_failure "$local_result" "$local_rc")"
     echo "false"
   fi
 }
@@ -138,7 +173,7 @@ while (true); do
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
     # 记录不存在时直接报错重试，避免向 .../dns_records/ 空 id 发起无效 PUT
     if [ -z "$dns_record_id" ]; then
-      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      log_file "未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录"
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -146,11 +181,11 @@ while (true); do
 
     # 判断api是否调用成功
     if [ "$result" == "true" ]; then
+      log_file "修改成功"
       echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
       break
     else
-      echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+      log_file "修改失败,休眠$sleep_time秒"
     fi
     ;;
   "HTTPS")
@@ -158,7 +193,7 @@ while (true); do
     request_data="$(generate_request_data "$dns_type")"
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
     if [ -z "$dns_record_id" ]; then
-      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      log_file "未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录"
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -166,11 +201,11 @@ while (true); do
 
     # 判断api是否调用成功
     if [ "$result" == "true" ]; then
+      log_file "修改成功"
       echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
       break
     else
-      echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+      log_file "修改失败,休眠$sleep_time秒"
     fi
     ;;
   "SRV")
@@ -179,7 +214,7 @@ while (true); do
     request_data="$(generate_request_data "$dns_type")"
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN" "$dns_type")"
     if [ -z "$dns_record_id" ]; then
-      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      log_file "未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN), 请先在 Cloudflare 添加该记录"
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -192,7 +227,7 @@ while (true); do
       request_data="$(generate_request_data "$dns_type")"
       dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
       if [ -z "$dns_record_id" ]; then
-        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+        log_file "未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录"
         result="false"
       else
         result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -200,14 +235,14 @@ while (true); do
 
       # 判断api是否调用成功
       if [ "$result" == "true" ]; then
+        log_file "修改成功"
         echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
         break
       else
-        echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+        log_file "修改失败,休眠$sleep_time秒"
       fi
     else
-      echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+      log_file "修改失败,休眠$sleep_time秒"
     fi
     ;;
   *) ;;

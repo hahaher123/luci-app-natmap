@@ -9,19 +9,17 @@ protocol=$5
 link_script=""
 # echo "LINK_MODE: $LINK_MODE"
 
-# 设置重试次数和时间间隔
-max_retries=1
-sleep_time=1
-
-# 判断是否开启高级功能
-if [ "${LINK_ADVANCED_ENABLE}" == 1 ]; then
-	max_retries=$LINK_ADVANCED_MAX_RETRIES
-	sleep_time=$LINK_ADVANCED_SLEEP_TIME
-else
-	# 默认重试次数为1，休眠时间为1s
-	max_retries=1
-	sleep_time=1
-fi
+# 重试次数与间隔：固定 10 次 / 5 秒，不再提供「高级设置」开关。
+#
+# link 动作全部依赖外网（Cloudflare API、qBittorrent/Emby 等的远端接口），而打洞成功
+# 往往早于 DNS/TLS 就绪 —— natmap 只需 UDP/STUN 就能打洞，wait-network.sh 即使探测
+# 失败也会在超时后照常启动 natmap，此时 oxidns/unbound 的 DoT 链路可能还没建好，
+# 第一个请求必然失败。原来默认 1 次意味着「重启后的首次打洞 = 联动必然丢失」，
+# 要等下次端口变化才补上。
+# 10 次 / 5 秒（最长约 45 秒）足以覆盖重启后 DNS 就绪的窗口；成功即 break，
+# 不会因为次数多而拖慢正常路径。
+max_retries=10
+sleep_time=5
 
 # 如果$LINK_MODE非空则执行对应的脚本
 case "${LINK_MODE}" in
@@ -53,7 +51,7 @@ esac
 # fi
 
 if [ -n "${link_script}" ]; then
-	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script" >>/var/log/natmap/natmap.log
-	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script (最多尝试 $max_retries 次, 间隔 $sleep_time 秒)" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script (最多尝试 $max_retries 次, 间隔 $sleep_time 秒)"
 	bash "${link_script}" "$outter_ip" "$outter_port" "$ip4p" "$inner_port" "$protocol" "$max_retries" "$sleep_time"
 fi

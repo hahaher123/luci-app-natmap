@@ -601,46 +601,6 @@ return view.extend({
     o.modalonly = true;
     o.depends("notify_mode", "gotify");
 
-    // notify_advanced
-    o = s.taboption(
-      "notify",
-      form.Flag,
-      "notify_advanced_enable",
-      _("Advanced Settings")
-    );
-    o.default = false;
-    o.modalonly = true;
-    o.depends("notify_mode", "pushplus");
-    o.depends("notify_mode", "telegram_bot");
-    o.depends("notify_mode", "serverchan");
-    o.depends("notify_mode", "gotify");
-
-    o = s.taboption(
-      "notify",
-      form.Value,
-      "notify_advanced_max_retries",
-      _("Max Retries"),
-      _("The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution.")
-    );
-    o.datatype = "uinteger";
-    o.default = 10;
-    o.modalonly = true;
-    o.rmempty = false;
-    o.depends("notify_advanced_enable", "1");
-
-    o = s.taboption(
-      "notify",
-      form.Value,
-      "notify_advanced_sleep_time",
-      _("Retry Interval"),
-      _("The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds.")
-    );
-    o.datatype = "uinteger";
-    o.default = 3;
-    o.modalonly = true;
-    o.rmempty = false;
-    o.depends("notify_advanced_enable", "1");
-
     // **********************************************************************
     // link
     // **********************************************************************
@@ -930,48 +890,6 @@ return view.extend({
     o.datatype = "ip6addr";
     o.modalonly = true;
     o.depends("link_tr_allow_ipv6", "1");
-
-    // link_advanced
-    o = s.taboption(
-      "link",
-      form.Flag,
-      "link_advanced_enable",
-      _("Advanced Settings")
-    );
-    o.default = false;
-    o.modalonly = true;
-    // o.depends("link_mode", "transmission");
-    // o.depends("link_mode", "qbittorrent");
-    // o.depends("link_mode", "emby");
-    // o.depends("link_mode", "cloudflare_origin_rule");
-    // o.depends("link_mode", "cloudflare_redirect_rule");
-    // o.depends("link_mode", "cloudflare_ddns");
-
-    o = s.taboption(
-      "link",
-      form.Value,
-      "link_advanced_max_retries",
-      _("Max Retries"),
-      _("The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution.")
-    );
-    o.datatype = "uinteger";
-    o.default = 10;
-    o.modalonly = true;
-    o.rmempty = false;
-    o.depends("link_advanced_enable", "1");
-
-    o = s.taboption(
-      "link",
-      form.Value,
-      "link_advanced_sleep_time",
-      _("Retry Interval"),
-      _("The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds.")
-    );
-    o.datatype = "uinteger";
-    o.default = 3;
-    o.modalonly = true;
-    o.rmempty = false;
-    o.depends("link_advanced_enable", "1");
 
     // **********************************************************************
     // Custom Settings
