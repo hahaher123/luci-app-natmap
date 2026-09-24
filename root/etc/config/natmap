@@ -7,7 +7,7 @@ config natmap
 	option general_wait_network '1'
 	option general_wait_network_timeout '120'
 	option general_interval ''
-	option general_stun_server 'stunserver.stunprotocol.org'
+	option general_stun_server 'stun.fitauto.ru'
 	option general_http_server 'example.com'
 	option general_bind_port '8080'
 	option forward_enable '0'

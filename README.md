@@ -22,7 +22,7 @@
 | 修复 | 接口绑定 | 不再覆盖 WAN 接口、导致打洞失效 |
 | 修复 | 通知插件 | 含 `&`、引号、换行的消息可正常发送；服务端报错不再误报「成功」并自动重试 |
 | 修复 | 脚本健壮性 | 统一请求超时；不再并发写 uci / 防火墙冲突 |
-| 修复 | 默认 STUN 服务器 | 改为官方 `natmap` 包的默认值 `stunserver.stunprotocol.org`（仅影响新安装） |
+| 修复 | 默认 STUN 服务器 | 改为 `stun.fitauto.ru`，新建规则时也会预填该值（仅影响新安装与新建规则） |
 | 新增 | 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动 |
 | 新增 | 断网自恢复 | 长时间断网不再永久停摆，网络恢复后自动重新打洞 |
 | 新增 | 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
@@ -80,7 +80,7 @@ apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk   
 | `general_wan_interface` | WAN 接口名（如 `wan`） |
 | `general_wait_network` / `general_wait_network_timeout` | 是否等待网络就绪（默认 `1`）及最长等待秒数（默认 `120`） |
 | `general_nat_protocol` / `general_ip_address_family` | `tcp` / `udp`；`ipv4` / `ipv6`（留空为双栈） |
-| `general_interval` / `general_stun_server` | keepalive 间隔（秒）；STUN 服务器（默认 `stunserver.stunprotocol.org`） |
+| `general_interval` / `general_stun_server` | keepalive 间隔（秒）；STUN 服务器（默认 `stun.fitauto.ru`） |
 | `general_http_server` / `general_bind_port` | HTTP 打洞服务器（TCP 模式）；绑定端口（单端口或范围） |
 
 联动配置项由 `link_mode` 选择（`qbittorrent` / `transmission` / `emby` / `cloudflare_*`），各项含义见 LuCI 页面内说明。
@@ -90,14 +90,6 @@ apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk   
 - 按**端口**放行（同时放行 TCP 与 UDP），不写任何 IPv6 地址或网段 —— 设备的 IPv6 后缀通常是随机的隐私地址，按网段放行会随运营商重新下发 PD 而失效。
 - 放行方向由 WAN 与「转发目标接口」决定，均自动识别为防火墙 zone 名，填 `lan2` 之类的网络名也能正确生效。**「转发目标接口」留空时放行目标回退到 lan 区域**，因此只做 IPv6 放行、不配 IPv4 端口转发也能直接用。
 - 打洞端口变化时规则会自动更新。
-
-**防火墙端口同步**：开启「自定义脚本」并指向内置脚本，默认写入规则 `nas_incoming_5` 的 `dest_port`。
-
-```sh
-uci set natmap.@natmap[0].custom_script_enable=1
-uci set natmap.@natmap[0].custom_script_path=/usr/share/natmap/plugin-link/firewall_nas.sh
-uci commit natmap && /etc/init.d/natmap restart
-```
 
 如需调整，编辑脚本顶部的 `RULE_NAME` / `RULE_DEST_IP` / `SYNC_PROTO`。
 

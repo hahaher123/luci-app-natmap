@@ -283,6 +283,9 @@ return view.extend({
     o.modalonly = true;
     o.optional = false;
     o.rmempty = false;
+    // 新建规则时的默认值与 /etc/config/natmap 的出厂值保持一致，
+    // 否则新建实例会留空，必须手动填才能启动。
+    o.default = "stun.fitauto.ru";
 
     o = s.taboption(
       "general",
