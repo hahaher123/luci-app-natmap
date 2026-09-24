@@ -955,12 +955,15 @@ return view.extend({
     o.editable = true;
     o.modalonly = false;
 
-    return m.render().then(function () {
+    return m.render().then(function (node) {
       var log = renderLogPanel();
 
       // 日志面板不放在页面内容之后，而是**页首**：
       // 页面本身很长（含状态、联动、自定义等大段配置），把日志放末尾意味着每次
       // 想看日志都要先滚到底，改配置和看回显无法在同一屏内对照。
+      //
+      // 注意：这里必须用 insertBefore，所以 then() 的回调**必须接住 node 参数**
+      // （漏掉会直接 `ReferenceError: node is not defined`，整个页面白屏报错）。
       node.insertBefore(log.node, node.firstChild);
 
       // 挂载后再拉日志，首次渲染就能滚到底部
