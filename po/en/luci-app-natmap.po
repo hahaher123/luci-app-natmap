@@ -335,25 +335,17 @@ msgstr "Username"
 msgid "Password"
 msgstr "Password"
 
-#: natmap.js:844 natmap.js:895
+#: natmap.js:857 natmap.js:894
 msgid "Allow IPv6"
 msgstr "Allow IPv6"
 
-#: natmap.js:846 natmap.js:897
-msgid "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
-msgstr "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+#: natmap.js:859 natmap.js:896
+msgid "Allow incoming IPv6 connections on the hole punched port, regardless of the IPv6 address of the device, so a changing IPv6 suffix does not matter. Both TCP and UDP are opened."
+msgstr "Allow incoming IPv6 connections on the hole punched port, regardless of the IPv6 address of the device, so a changing IPv6 suffix does not matter. Both TCP and UDP are opened."
 
 #: natmap.js:633 natmap.js:672
 msgid "IPv6 Address"
 msgstr "IPv6 Address"
-
-#: natmap.js:857 natmap.js:908
-msgid "Extra IPv6 Address"
-msgstr "Extra IPv6 Address"
-
-#: natmap.js:859 natmap.js:910
-msgid "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
-msgstr "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
 
 #: natmap.js:644
 msgid "RPC URL"

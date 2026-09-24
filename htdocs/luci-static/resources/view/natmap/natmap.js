@@ -55,7 +55,7 @@ var LOG_TAIL_LINES = 500;
 var LOG_POLL_MS = 5000;
 
 function renderLogPanel() {
-  var pre, btnRefresh, btnClear, chkAuto;
+  var pre, btnRefresh, btnClear, chkAuto, topBox;
   var timer = null;
 
   function stopPolling() {
@@ -84,7 +84,7 @@ function renderLogPanel() {
     "pre",
     {
       style:
-        "margin:.5em 0 0;padding:.6em;max-height:24em;overflow:auto;" +
+        "margin:.5em 0 0;padding:.6em;max-height:20em;overflow:auto;" +
         "white-space:pre-wrap;word-break:break-all;font-size:90%;line-height:1.4",
     },
     [_("Loading...")]
@@ -139,14 +139,16 @@ function renderLogPanel() {
       });
   });
 
-  return {
-    node: E("div", { class: "cbi-section" }, [
-      E("h3", {}, [_("Execution Log")]),
-      E("div", { class: "cbi-section-descr" }, [
-        E("code", {}, [LOG_PATH]),
-        " ",
-        _("Stored in tmpfs, cleared on reboot. Timestamps are UTC+8."),
-      ]),
+  // 工具行与日志正文放在一个"可吸附"容器里：鼠标滚到页面下方时，
+  // 容器顶部会贴在视口顶部（sticky），日志始终可见，不用来回滚动。
+  topBox = E(
+    "div",
+    {
+      style:
+        "position:sticky;top:0;z-index:5;padding:.4em 0 .6em;" +
+        "background:var(--background-color,#fff)",
+    },
+    [
       E("div", { style: "margin:.6em 0" }, [
         btnRefresh,
         E("label", { style: "margin-left:1em;white-space:nowrap" }, [
@@ -156,6 +158,18 @@ function renderLogPanel() {
         btnClear,
       ]),
       pre,
+    ]
+  );
+
+  return {
+    node: E("div", { class: "cbi-section" }, [
+      E("h3", {}, [_("Execution Log")]),
+      E("div", { class: "cbi-section-descr" }, [
+        E("code", {}, [LOG_PATH]),
+        " ",
+        _("Stored in tmpfs, cleared on reboot. Timestamps are UTC+8."),
+      ]),
+      topBox,
     ]),
     refresh: load,
   };
@@ -843,26 +857,12 @@ return view.extend({
       "link_qb_allow_ipv6",
       _("Allow IPv6"),
       _(
-        "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+        "Allow incoming IPv6 connections on the hole punched port, regardless of the IPv6 address of the device, so a changing IPv6 suffix does not matter. Both TCP and UDP are opened."
       )
     );
     o.default = false;
     o.modalonly = true;
     o.depends("link_mode", "qbittorrent");
-
-    o = s.taboption(
-      "link",
-      form.Value,
-      "link_qb_ipv6_address",
-      _("Extra IPv6 Address"),
-      _(
-        "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
-      )
-    );
-    o.datatype = "list(or(ip6addr,cidr6))";
-    o.placeholder = _("auto");
-    o.modalonly = true;
-    o.depends("link_qb_allow_ipv6", "1");
 
     // link_transmission
     o = s.taboption(
@@ -894,26 +894,12 @@ return view.extend({
       "link_tr_allow_ipv6",
       _("Allow IPv6"),
       _(
-        "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+        "Allow incoming IPv6 connections on the hole punched port, regardless of the IPv6 address of the device, so a changing IPv6 suffix does not matter. Both TCP and UDP are opened."
       )
     );
     o.modalonly = true;
     o.default = false;
     o.depends("link_mode", "transmission");
-
-    o = s.taboption(
-      "link",
-      form.Value,
-      "link_tr_ipv6_address",
-      _("Extra IPv6 Address"),
-      _(
-        "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
-      )
-    );
-    o.datatype = "list(or(ip6addr,cidr6))";
-    o.placeholder = _("auto");
-    o.modalonly = true;
-    o.depends("link_tr_allow_ipv6", "1");
 
     // **********************************************************************
     // Custom Settings
@@ -969,10 +955,14 @@ return view.extend({
     o.editable = true;
     o.modalonly = false;
 
-    return m.render().then(function (node) {
+    return m.render().then(function () {
       var log = renderLogPanel();
 
-      node.appendChild(log.node);
+      // 日志面板不放在页面内容之后，而是**页首**：
+      // 页面本身很长（含状态、联动、自定义等大段配置），把日志放末尾意味着每次
+      // 想看日志都要先滚到底，改配置和看回显无法在同一屏内对照。
+      node.insertBefore(log.node, node.firstChild);
+
       // 挂载后再拉日志，首次渲染就能滚到底部
       log.refresh();
       return node;
