@@ -62,10 +62,10 @@ if [ "$locked" = 1 ]; then
 		touch /var/log/natmap/natmap.log
 	fi
 
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 开始更新" >>/var/log/natmap/natmap.log
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 开始更新"
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : natmap update json: $(cat /var/run/natmap/$PPID.json)" >>/var/log/natmap/natmap.log
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : natmap update json: $(cat /var/run/natmap/$PPID.json)"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 开始更新" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 开始更新"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : natmap update json: $(cat /var/run/natmap/$PPID.json)" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : natmap update json: $(cat /var/run/natmap/$PPID.json)"
 
 	# forward setting
 	[ "${FORWARD_ENABLE}" == 1 ] && source /usr/share/natmap/forward.sh "$@"
@@ -83,7 +83,7 @@ if [ "$locked" = 1 ]; then
 	# 放在锁内既会拖住后续映射变化的更新，也会让它们等锁超时。
 	exec 9>&-
 else
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} - 上一次更新未结束(锁等待超时), 跳过状态更新, 仍会发送通知" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} - 上一次更新未结束(锁等待超时), 跳过状态更新, 仍会发送通知" >>/var/log/natmap/natmap.log
 fi
 
 # notify setting

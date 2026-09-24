@@ -18,8 +18,8 @@ protocol=$5
 LOG_FILE="/var/log/natmap/natmap.log"
 log() {
 	[ -d "/var/log/natmap" ] || mkdir -p "/var/log/natmap"
-	echo "$(date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} : firewall-$RULE_NAME : $*" >>"$LOG_FILE"
-	echo "$(date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} : firewall-$RULE_NAME : $*"
+	echo "$(TZ='CST-8' date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} : firewall-$RULE_NAME : $*" >>"$LOG_FILE"
+	echo "$(TZ='CST-8' date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} : firewall-$RULE_NAME : $*"
 }
 main() {
 	case "$outter_port" in

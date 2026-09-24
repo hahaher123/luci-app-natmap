@@ -157,10 +157,10 @@ while (true); do
           del_payload="$(create_payload "del" "$id")"
           del_response="$(call_action "$cookie" "$del_payload")"
           if [ "$(echo "$del_response" | jq -r '.ErrMsg')" = "Success" ]; then
-            echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Port mapping deleted successfully" >>/var/log/natmap/natmap.log
+            echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Port mapping deleted successfully" >>/var/log/natmap/natmap.log
             # echo "delete successfully"
           else
-            echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to delete the port mapping" >>/var/log/natmap/natmap.log
+            echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to delete the port mapping" >>/var/log/natmap/natmap.log
             # echo "delete failed"
           fi
         done
@@ -177,7 +177,7 @@ while (true); do
       if [ ${#mapping_record_ids[@]} -eq 0 ]; then
 
         # 旧端口映射记录已经全部删除，开始创建新纪录
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE all Port mapping deleted successfully" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE all Port mapping deleted successfully" >>/var/log/natmap/natmap.log
         #
         # 添加端口映射
         # echo "adding mapping record..."
@@ -188,17 +188,17 @@ while (true); do
         #
         # Check if the modification was successful
         if [ "$(echo "$add_response" | jq -r '.ErrMsg')" = "Success" ]; then
-          echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Port mapping add successfully" >>/var/log/natmap/natmap.log
-          echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改成功" >>/var/log/natmap/natmap.log
-          echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改成功"
+          echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Port mapping add successfully" >>/var/log/natmap/natmap.log
+          echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改成功" >>/var/log/natmap/natmap.log
+          echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改成功"
           # echo "add successfully"
           break
         else
-          echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to add" >>/var/log/natmap/natmap.log
+          echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to add" >>/var/log/natmap/natmap.log
           # echo "add failed"
         fi
       else
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to delete all of old record" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE Failed to delete all of old record" >>/var/log/natmap/natmap.log
       fi
     fi
   fi
@@ -206,11 +206,11 @@ while (true); do
   # 检测剩余重试次数
   let retry_count++
   if [ $retry_count -lt $max_retries ] || [ $max_retries -eq 0 ]; then
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
     sleep $sleep_time
   else
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 达到最大重试次数，无法修改,请检测是否设置正确" >>/var/log/natmap/natmap.log
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 达到最大重试次数，无法修改,请检测是否设置正确"
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 达到最大重试次数，无法修改,请检测是否设置正确" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $FORWARD_MODE 达到最大重试次数，无法修改,请检测是否设置正确"
     break
   fi
 

@@ -32,7 +32,7 @@ function get_dns_record_id() {
   # 判断是否成功获取响应
   if [ "$(echo "$local_dns_record" | jq '.success' | sed 's/"//g')" == "true" ]; then
     # 获取与dns_type匹配的dns_record_id
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
     local_dns_record_id=$(echo "$local_dns_record" | jq ".result[0].id" | sed 's/"//g')
   fi
 
@@ -138,7 +138,7 @@ while (true); do
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
     # 记录不存在时直接报错重试，避免向 .../dns_records/ 空 id 发起无效 PUT
     if [ -z "$dns_record_id" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -146,8 +146,8 @@ while (true); do
 
     # 判断api是否调用成功
     if [ "$result" == "true" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
       break
     else
       echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
@@ -158,7 +158,7 @@ while (true); do
     request_data="$(generate_request_data "$dns_type")"
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
     if [ -z "$dns_record_id" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -166,8 +166,8 @@ while (true); do
 
     # 判断api是否调用成功
     if [ "$result" == "true" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
       break
     else
       echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
@@ -179,7 +179,7 @@ while (true); do
     request_data="$(generate_request_data "$dns_type")"
     dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN" "$dns_type")"
     if [ -z "$dns_record_id" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_SRV_TARGET_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
       result="false"
     else
       result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -192,7 +192,7 @@ while (true); do
       request_data="$(generate_request_data "$dns_type")"
       dns_record_id="$(get_dns_record_id "$LINK_CLOUDFLARE_DDNS_DOMAIN" "$dns_type")"
       if [ -z "$dns_record_id" ]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到 $dns_type 记录($LINK_CLOUDFLARE_DDNS_DOMAIN), 请先在 Cloudflare 添加该记录" >>/var/log/natmap/natmap.log
         result="false"
       else
         result="$(update_dns_record "$dns_record_id" "$request_data")"
@@ -200,8 +200,8 @@ while (true); do
 
       # 判断api是否调用成功
       if [ "$result" == "true" ]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
         break
       else
         echo "$LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
@@ -218,8 +218,8 @@ while (true); do
   if [ $retry_count -lt $max_retries ] || [ $max_retries -eq 0 ]; then
     sleep $sleep_time
   else
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
     break
   fi
 done

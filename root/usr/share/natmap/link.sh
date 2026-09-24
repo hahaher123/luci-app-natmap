@@ -53,7 +53,7 @@ esac
 # fi
 
 if [ -n "${link_script}" ]; then
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script" >>/var/log/natmap/natmap.log
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute link script"
 	bash "${link_script}" "$outter_ip" "$outter_port" "$ip4p" "$inner_port" "$protocol" "$max_retries" "$sleep_time"
 fi

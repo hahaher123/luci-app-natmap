@@ -61,7 +61,7 @@ esac
 # fi
 
 if [ -n "${notify_script}" ]; then
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute notify script (最多尝试 ${max_retries} 次, 间隔 ${sleep_time} 秒)" >>/var/log/natmap/natmap.log
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute notify script"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute notify script (最多尝试 ${max_retries} 次, 间隔 ${sleep_time} 秒)" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute notify script"
 	bash "$notify_script" "$msg" "$max_retries" "$sleep_time"
 fi

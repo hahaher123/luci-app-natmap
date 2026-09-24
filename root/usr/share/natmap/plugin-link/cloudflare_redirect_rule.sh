@@ -26,14 +26,14 @@ while (true); do
   cloudflare_ruleset_id=$(echo "$currrent_rule" | jq '.result.id' | sed 's/"//g')
 
   if [ -n "$cloudflare_ruleset_id" ]; then
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
 
     # 按规则名称(description)定位规则索引
     rule_idx=$(echo "$currrent_rule" | jq -r --arg name "$LINK_CLOUDFLARE_REDIRECT_RULE_NAME" '.result.rules | to_entries | map(select(.value.description == $name) | .key) | first // empty' 2>/dev/null)
 
     if [ -z "$rule_idx" ]; then
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到名为 $LINK_CLOUDFLARE_REDIRECT_RULE_NAME 的规则" >>/var/log/natmap/natmap.log
-      echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到名为 $LINK_CLOUDFLARE_REDIRECT_RULE_NAME 的规则"
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到名为 $LINK_CLOUDFLARE_REDIRECT_RULE_NAME 的规则" >>/var/log/natmap/natmap.log
+      echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 未找到名为 $LINK_CLOUDFLARE_REDIRECT_RULE_NAME 的规则"
     else
       # 替换 NEW_PORT 占位符为当前打洞端口
       redirect_rule_target_url=$(echo "$LINK_CLOUDFLARE_REDIRECT_RULE_TARGET_URL" | sed 's/NEW_PORT/'"$outter_port"'/g')
@@ -51,16 +51,16 @@ while (true); do
         --data "$request_data")
 
       if [ "$(echo "$result" | jq -r '.success')" == "true" ]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功: $redirect_rule_target_url" >>/var/log/natmap/natmap.log
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功: $redirect_rule_target_url"
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功: $redirect_rule_target_url" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功: $redirect_rule_target_url"
         break
       else
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改失败: $(echo "$result" | jq -c '.errors' 2>/dev/null)" >>/var/log/natmap/natmap.log
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改失败: $(echo "$result" | jq -c '.errors' 2>/dev/null)" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
       fi
     fi
   else
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录失败,休眠$sleep_time秒" >>/var/log/natmap/natmap.log
   fi
 
   # 检测剩余重试次数
@@ -68,8 +68,8 @@ while (true); do
   if [ $retry_count -lt $max_retries ] || [ $max_retries -eq 0 ]; then
     sleep $sleep_time
   else
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
     break
   fi
 done

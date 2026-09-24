@@ -411,3 +411,38 @@ msgstr "Redirect Rule Target URL"
 msgid "such as http://127.0.0.1:8080 or http://ikuai.lan:8080.if use host,must close Rebind protection in DHCP/DNS"
 msgstr "such as http://127.0.0.1:8080 or http://ikuai.lan:8080.if use host,must close Rebind protection in DHCP/DNS"
 
+#: natmap.js:154
+msgid "Auto refresh (5s)"
+msgstr "Auto refresh (5s)"
+
+#: natmap.js:105
+msgid "Clear"
+msgstr "Clear"
+
+#: natmap.js:144
+msgid "Execution Log"
+msgstr "Execution Log"
+
+#: natmap.js:136
+msgid "Failed to clear log."
+msgstr "Failed to clear log."
+
+#: natmap.js:90
+msgid "Loading..."
+msgstr "Loading..."
+
+#: natmap.js:130
+msgid "Log cleared."
+msgstr "Log cleared."
+
+#: natmap.js:75
+msgid "No log yet."
+msgstr "No log yet."
+
+#: natmap.js:94
+msgid "Refresh"
+msgstr "Refresh"
+
+#: natmap.js:148
+msgid "Stored in tmpfs, cleared on reboot. Timestamps are UTC+8."
+msgstr "Stored in tmpfs, cleared on reboot. Timestamps are UTC+8."

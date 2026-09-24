@@ -22,7 +22,7 @@ LOG=/var/log/natmap/natmap.log
 [ -d /var/log/natmap ] || mkdir -p /var/log/natmap
 COOKIE_JAR=/tmp/natmap_qb.cookies
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-qbittorrent} : $*" | tee -a "$LOG"
+    echo "$(TZ='CST-8' date '+%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-qbittorrent} : $*" | tee -a "$LOG"
 }
 if [ -z "$outter_port" ] || [ -z "$LINK_QB_WEB_URL" ] || [ -z "$LINK_QB_USERNAME" ] || [ -z "$LINK_QB_PASSWORD" ]; then
     log "缺少必要参数。用法: qbittorrent.sh <outter_ip> <outter_port> [ip4p] [inner_port] [protocol] [max_retries] [sleep_time]"

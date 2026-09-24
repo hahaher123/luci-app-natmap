@@ -15,8 +15,8 @@ case "$sleep_time" in
 esac
 
 log() {
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*" >>/var/log/natmap/natmap.log
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*"
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*" >>/var/log/natmap/natmap.log
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME} - ${NOTIFY_MODE} $*"
 }
 
 # 用 jq 构建请求体，避免消息中含引号/换行时破坏 JSON

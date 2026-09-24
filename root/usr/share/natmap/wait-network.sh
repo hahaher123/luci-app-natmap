@@ -33,7 +33,7 @@ mkdir -p /var/run/natmap /var/log/natmap 2>/dev/null
 trap 'exit 143' TERM INT
 
 log() {
-	echo "$(date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} - $*" >>"${LOG_FILE}" 2>/dev/null
+	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : ${GENERAL_NAT_NAME:-natmap} - $*" >>"${LOG_FILE}" 2>/dev/null
 }
 
 # 解析 WAN 逻辑接口对应的网络设备名（成功则输出设备名）

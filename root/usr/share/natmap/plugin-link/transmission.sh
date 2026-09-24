@@ -24,7 +24,7 @@ while (true); do
 
     # Check if the provided session ID contains the header "X-Transmission-Session-Id"
     if [[ $trsid == *"X-Transmission-Session-Id"* ]]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录成功" >>/var/log/natmap/natmap.log
 
         # Modify the port using the Transmission API
         tr_result=$(curl -s -m 20 -X POST \
@@ -34,8 +34,8 @@ while (true); do
 
         # Check if the port modification was successful
         if [[ $(echo "$tr_result" | jq -r '.result') == "success" ]]; then
-            echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
-            echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
+            echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功" >>/var/log/natmap/natmap.log
+            echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 修改成功"
             break
         fi
     fi
@@ -43,11 +43,11 @@ while (true); do
     # 检测剩余重试次数
     let retry_count++
     if [ $retry_count -lt $max_retries ] || [ $max_retries -eq 0 ]; then
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录失败,正在重试..." >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 登录失败,正在重试..." >>/var/log/natmap/natmap.log
         sleep $sleep_time
     else
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
-        echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改" >>/var/log/natmap/natmap.log
+        echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - $LINK_MODE 达到最大重试次数，无法修改"
         break
     fi
 done

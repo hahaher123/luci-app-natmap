@@ -26,6 +26,7 @@
 | 新增 | 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动 |
 | 新增 | 断网自恢复 | 长时间断网不再永久停摆，网络恢复后自动重新打洞 |
 | 新增 | 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
+| 新增 | 执行日志 | LuCI 页面可查看打洞与插件的执行日志，支持自动刷新与清空 |
 
 natmap 核心使用官方最新 **20260214**（与 OpenWrt 25.12 官方 feed 同版本）。
 
@@ -91,6 +92,8 @@ uci commit natmap && /etc/init.d/natmap restart
 ```
 
 如需调整，编辑脚本顶部的 `RULE_NAME` / `RULE_DEST_IP` / `SYNC_PROTO`。
+
+**执行日志**：页面底部显示 `/var/log/natmap/natmap.log` 尾部，可手动或每 5 秒自动刷新，也可清空。日志落在 tmpfs（`/var` 是 `/tmp` 的符号链接），重启即清空、不写 flash；单文件超过 1 MB 时滚动为 `natmap.log.1`（只留一份）。时间戳固定按 UTC+8 输出，不受系统时区影响。
 
 **Cloudflare Redirect Rules**：入口域名开橙云代理，跳转目标域名需为 DNS-only（灰云，解析到家宽公网 IP）；目标 URL 的端口位置用 `NEW_PORT` 占位，规则名需与控制台一致。
 

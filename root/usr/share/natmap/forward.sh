@@ -39,7 +39,7 @@ case $FORWARD_MODE in
 esac
 
 if [ -n "${forward_script}" ]; then
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute forward script" >>/var/log/natmap/natmap.log
-    echo "$(date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute forward script"
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute forward script" >>/var/log/natmap/natmap.log
+    echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME execute forward script"
     bash "$forward_script" "$outter_ip" "$outter_port" "$ip4p" "$inner_port" "$protocol" "$max_retries" "$sleep_time"
 fi

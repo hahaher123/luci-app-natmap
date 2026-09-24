@@ -2,6 +2,7 @@
 "require form";
 "require fs";
 "require rpc";
+"require ui";
 "require view";
 "require tools.widgets as widgets";
 
@@ -45,6 +46,119 @@ function getStatus() {
       return status;
     });
   });
+}
+
+// 执行日志：日志落在 /var/log/natmap/natmap.log（/var 是 /tmp 的符号链接，
+// 即 tmpfs，重启后清空、不写 flash）。这里只读日志尾部，避免长日志把页面拖慢。
+var LOG_PATH = "/var/log/natmap/natmap.log";
+var LOG_TAIL_LINES = 500;
+var LOG_POLL_MS = 5000;
+
+function renderLogPanel() {
+  var pre, btnRefresh, btnClear, chkAuto;
+  var timer = null;
+
+  function stopPolling() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  function load() {
+    return fs
+      .read(LOG_PATH)
+      .then(function (res) {
+        var lines = String(res || "").split(/\r?\n/);
+        while (lines.length && lines[lines.length - 1] === "") lines.pop();
+        var tail = lines.slice(-LOG_TAIL_LINES);
+        pre.textContent = tail.length ? tail.join("\n") : _("No log yet.");
+        pre.scrollTop = pre.scrollHeight;
+      })
+      .catch(function () {
+        pre.textContent = _("No log yet.");
+      });
+  }
+
+  pre = E(
+    "pre",
+    {
+      style:
+        "margin:.5em 0 0;padding:.6em;max-height:24em;overflow:auto;" +
+        "white-space:pre-wrap;word-break:break-all;font-size:90%;line-height:1.4",
+    },
+    [_("Loading...")]
+  );
+
+  btnRefresh = E("button", { class: "btn cbi-button cbi-button-action" }, [
+    _("Refresh"),
+  ]);
+
+  chkAuto = E("input", {
+    type: "checkbox",
+    style: "margin:0 .35em 0 0;vertical-align:middle",
+  });
+
+  btnClear = E(
+    "button",
+    { class: "btn cbi-button cbi-button-reset", style: "margin-left:1em" },
+    [_("Clear")]
+  );
+
+  btnRefresh.addEventListener("click", function () {
+    load();
+  });
+
+  // 自动刷新：页面被 LuCI 卸载（节点脱离文档）后自动停表，避免后台空转
+  chkAuto.addEventListener("change", function () {
+    stopPolling();
+    if (chkAuto.checked)
+      timer = setInterval(function () {
+        if (!pre.isConnected) {
+          stopPolling();
+          chkAuto.checked = false;
+          return;
+        }
+        load();
+      }, LOG_POLL_MS);
+  });
+
+  btnClear.addEventListener("click", function () {
+    fs
+      .write(LOG_PATH, "")
+      .then(function () {
+        ui.addNotification(null, E("p", {}, [_("Log cleared.")]));
+        return load();
+      })
+      .catch(function () {
+        ui.addNotification(
+          null,
+          E("p", {}, [_("Failed to clear log.")]),
+          "danger"
+        );
+      });
+  });
+
+  return {
+    node: E("div", { class: "cbi-section" }, [
+      E("h3", {}, [_("Execution Log")]),
+      E("div", { class: "cbi-section-descr" }, [
+        E("code", {}, [LOG_PATH]),
+        " ",
+        _("Stored in tmpfs, cleared on reboot. Timestamps are UTC+8."),
+      ]),
+      E("div", { style: "margin:.6em 0" }, [
+        btnRefresh,
+        E("label", { style: "margin-left:1em;white-space:nowrap" }, [
+          chkAuto,
+          _("Auto refresh (5s)"),
+        ]),
+        btnClear,
+      ]),
+      pre,
+    ]),
+    refresh: load,
+  };
 }
 
 return view.extend({
@@ -913,6 +1027,13 @@ return view.extend({
     o.editable = true;
     o.modalonly = false;
 
-    return m.render();
+    return m.render().then(function (node) {
+      var log = renderLogPanel();
+
+      node.appendChild(log.node);
+      // 挂载后再拉日志，首次渲染就能滚到底部
+      log.refresh();
+      return node;
+    });
   },
 });
