@@ -27,9 +27,13 @@ msgstr "填写 0 ，则转发到从STUN获取的外部端口"
 msgid "Advanced Settings"
 msgstr "高级设置"
 
-#: natmap.js:624 natmap.js:663
+#: natmap.js:844 natmap.js:895
 msgid "Allow IPv6"
 msgstr "允许 IPv6"
+
+#: natmap.js:846 natmap.js:897
+msgid "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+msgstr "允许外部通过 IPv6 连接打洞得到的端口。会自动探测「转发目标接口」所在防火墙 zone 内全部网络的 IPv6 段并放行，所以无需填写地址，设备 IPv6 后缀变化也不受影响。"
 
 #: natmap.js:574
 msgid "API Key"
@@ -210,6 +214,14 @@ msgstr "仅 IPv4"
 #: natmap.js:633 natmap.js:672
 msgid "IPv6 Address"
 msgstr "IPv6 地址"
+
+#: natmap.js:857 natmap.js:908
+msgid "Extra IPv6 Address"
+msgstr "额外放行的 IPv6 地址"
+
+#: natmap.js:859 natmap.js:910
+msgid "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
+msgstr "可留空。留空则只放行自动探测到的 LAN 段。若某个主机或网段没被自动覆盖到，这里可填一个或多个地址（如 fd00::1）或前缀（如 fd00::/64），用空格分隔。"
 
 #: natmap.js:102
 msgid "IPv6 only"

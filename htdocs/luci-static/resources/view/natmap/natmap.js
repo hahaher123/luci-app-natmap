@@ -837,7 +837,15 @@ return view.extend({
     o.modalonly = true;
     o.depends("link_mode", "qbittorrent");
 
-    o = s.taboption("link", form.Flag, "link_qb_allow_ipv6", _("Allow IPv6"));
+    o = s.taboption(
+      "link",
+      form.Flag,
+      "link_qb_allow_ipv6",
+      _("Allow IPv6"),
+      _(
+        "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+      )
+    );
     o.default = false;
     o.modalonly = true;
     o.depends("link_mode", "qbittorrent");
@@ -846,9 +854,13 @@ return view.extend({
       "link",
       form.Value,
       "link_qb_ipv6_address",
-      _("IPv6 Address")
+      _("Extra IPv6 Address"),
+      _(
+        "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
+      )
     );
-    o.datatype = "ip6addr";
+    o.datatype = "list(or(ip6addr,cidr6))";
+    o.placeholder = _("auto");
     o.modalonly = true;
     o.depends("link_qb_allow_ipv6", "1");
 
@@ -876,7 +888,15 @@ return view.extend({
     o.modalonly = true;
     o.depends("link_mode", "transmission");
 
-    o = s.taboption("link", form.Flag, "link_tr_allow_ipv6", _("Allow IPv6"));
+    o = s.taboption(
+      "link",
+      form.Flag,
+      "link_tr_allow_ipv6",
+      _("Allow IPv6"),
+      _(
+        "Allow incoming IPv6 connections to the port obtained by hole punching. The IPv6 segments of every network in the firewall zone of Target_Interface are detected automatically, so no address needs to be filled in and a changing IPv6 suffix does not matter."
+      )
+    );
     o.modalonly = true;
     o.default = false;
     o.depends("link_mode", "transmission");
@@ -885,9 +905,13 @@ return view.extend({
       "link",
       form.Value,
       "link_tr_ipv6_address",
-      _("IPv6 Address")
+      _("Extra IPv6 Address"),
+      _(
+        "Optional. Leave empty to only use the auto detected LAN segments. Accepts one or more addresses (fd00::1) or prefixes (fd00::/64), separated by spaces, if some host or segment is not covered automatically."
+      )
     );
-    o.datatype = "ip6addr";
+    o.datatype = "list(or(ip6addr,cidr6))";
+    o.placeholder = _("auto");
     o.modalonly = true;
     o.depends("link_tr_allow_ipv6", "1");
 

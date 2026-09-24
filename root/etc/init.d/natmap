@@ -62,13 +62,13 @@ validate_section_natmap() {
 		'link_qb_web_url:string' \
 		'link_qb_username:string' \
 		'link_qb_password:string' \
-		'link_qb_ipv6_address:ip6addr' \
+		'link_qb_ipv6_address:list(or(ip6addr,cidr6))' \
 		'link_qb_allow_ipv6:bool:0' \
 		'link_tr_rpc_url:string' \
 		'link_tr_username:string' \
 		'link_tr_password:string' \
 		'link_tr_allow_ipv6:bool:0' \
-		'link_tr_ipv6_address:ip6addr' \
+		'link_tr_ipv6_address:list(or(ip6addr,cidr6))' \
 		'link_cloudflare_token:string' \
 		'link_cloudflare_zone_id:string' \
 		'link_cloudflare_origin_rule_name:string' \

@@ -18,11 +18,12 @@
 | 修复 | qBittorrent 端口联动 | 兼容 4.3+ / 5.x；密码含特殊字符也能登录并修改监听端口 |
 | 修复 | Transmission / Emby 联动 | 凭据含特殊字符不再登录失败，不再无限重试 |
 | 修复 | Cloudflare 联动 | DDNS 与跳转规则更新恢复正常，记录不存在时给出明确提示 |
-| 修复 | 防火墙 IPv6 放行 | 放行规则恢复生效，不再误用 IPv4 目标端口 |
+| 修复 | 防火墙 IPv6 放行 | 放行规则恢复生效，不再误用 IPv4 目标端口；只开 IPv6 放行、没配 IPv4 转发时也能生效 |
 | 修复 | 接口绑定 | 不再覆盖 WAN 接口、导致打洞失效 |
 | 修复 | 通知插件 | 含 `&`、引号、换行的消息可正常发送；服务端报错不再误报「成功」并自动重试 |
 | 修复 | 脚本健壮性 | 统一请求超时；不再并发写 uci / 防火墙冲突 |
 | 修复 | 默认 STUN 服务器 | 改为可用的 `stun.cloudflare.com`（仅影响新安装） |
+| 新增 | 自动放行 LAN IPv6 段 | 自动探测「转发目标接口」所在防火墙 zone 内**全部网络**的 IPv6 段并放行该端口，多 LAN 全覆盖，无需填写地址（IPv6 后缀变化也不受影响） |
 | 新增 | 等待网络就绪 | 开机 / 网络重置时先等 WAN 就绪再打洞，等待有上限，超时照常启动 |
 | 新增 | 断网自恢复 | 长时间断网不再永久停摆，网络恢复后自动重新打洞 |
 | 新增 | 端口同步到防火墙 | 打洞成功后自动把外部端口写入指定防火墙规则 |
@@ -83,6 +84,14 @@ apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk   
 
 联动配置项由 `link_mode` 选择（`qbittorrent` / `transmission` / `emby` / `cloudflare_*`），各项含义见 LuCI 页面内说明。
 
+**qBittorrent / Transmission 的 IPv6 放行**：公网 IPv6 没有 NAT，下载器的监听端口就是打洞拿到的外部端口，只需放「外部能进来」。打开联动的 `Allow IPv6` 即可：
+
+- 自动探测「转发目标接口」所在**防火墙 zone 内全部网络**（含多个 LAN）的全局 IPv6 段并放行，前缀随运营商 PD 变化会自动更新，不会残留旧段。
+- 设备的 IPv6 后缀通常是随机的隐私地址，所以按网段放行而不是按单机地址。
+- 目标接口填的是 `/etc/config/network` 里的网络名，插件会自动换成所在 zone 名——所以填 `lan2` 也能正确放行整个 `lan` zone。
+- 未自动覆盖到的主机或网段，再在 `Extra IPv6 Address`（`link_qb_ipv6_address` / `link_tr_ipv6_address`）里补充地址或前缀，可留空；多个值用空格分隔（如 `fd00::1 fd99::/64`）。
+- 探测不到任何段且未手工填写时**不生成规则**（避免退化成对整个 LAN 放行）。
+
 **防火墙端口同步**：开启「自定义脚本」并指向内置脚本，默认写入规则 `nas_incoming_5` 的 `dest_port`。
 
 ```sh
@@ -121,7 +130,7 @@ root/usr/share/natmap/          # 回调入口 + link/forward/notify + plugin-*
 | qB 端口改不动 | 核对 `link_qb_web_url`；域名访问需加入 qB 域名白名单；看 `/var/log/natmap/natmap.log` |
 | 服务起不来 `validation failed` | `custom_script_path` 指向的文件必须存在 |
 | Cloudflare 联动失败 | 规则名需与 `link_cloudflare_redirect_rule_name` 一致且已存在；DDNS 记录只更新不创建 |
-| IPv6 能连接但下载器无响应 | 开启下载器「允许 IPv6」，并填好 `link_qb_ipv6_address` / `link_tr_ipv6_address` |
+| IPv6 能连接但下载器无响应 | 开启下载器「允许 IPv6」，并在联动页打开 `Allow IPv6`；LAN 段自动放行，没被覆盖到的主机/网段再填 `Extra IPv6 Address` |
 
 ## 📄 许可
 
