@@ -359,7 +359,10 @@ return view.extend({
       "forward",
       widgets.NetworkSelect,
       "forward_firewall_target_interface",
-      _("Target_Interface")
+      _("Target_Interface"),
+      _(
+        "Target interface of the port forwarding (IPv4). The IPv6 allow rule falls back to the lan zone when this is empty."
+      )
     );
     o.modalonly = true;
     o.depends("forward_mode", "firewall");

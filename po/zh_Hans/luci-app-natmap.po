@@ -359,6 +359,10 @@ msgstr "例如：tcp 或 udp 或 tcp+udp"
 msgid "Target_Interface"
 msgstr "目标接口"
 
+#: natmap.js:209
+msgid "Target interface of the port forwarding (IPv4). The IPv6 allow rule falls back to the lan zone when this is empty."
+msgstr "端口转发（IPv4）的目标接口。留空时 IPv6 放行规则回退到 lan 区域。"
+
 #: natmap.js:90 natmap.js:256
 msgid "TCP"
 msgstr "TCP"

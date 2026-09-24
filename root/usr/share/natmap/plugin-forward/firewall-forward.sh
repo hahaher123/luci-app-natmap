@@ -142,6 +142,23 @@ if resolve_zone "$FORWARD_FIREWALL_TARGET_INTERFACE"; then
 	dest_zone="$RESOLVED_ZONE"
 fi
 
+# 目标接口为空时回退到 lan zone。
+#
+# forward_firewall_target_interface 是「端口转发」页给 **IPv4 DNAT** 用的选项，
+# 很多只做 IPv6 放行的用户根本不会去填它。而 IPv6 放行的目标天然就是内网（LAN），
+# 早期版本在这里直接判空跳过，导致这类用户永远建不出放行规则，日志还只说
+# 「未配置 WAN 或转发目标接口」—— 看不出该去填哪个框。
+#
+# 注意报文的 src 侧不做同样回退：WAN 是IPv6 流量的入口，猜错方向会放行错东西，
+# 宁可跳过（v4 的 src 仍取页面配置，行为不变）。
+if [ -z "$dest_zone" ]; then
+	dest_zone="lan"
+	if resolve_zone "lan"; then
+		dest_zone="$RESOLVED_ZONE"
+	fi
+	_log "未配置转发目标接口, IPv6 放行目标回退为 $dest_zone"
+fi
+
 # ================================================================
 # ① IPv4 端口转发（DNAT）
 # ================================================================
@@ -171,8 +188,8 @@ fi
 #
 if [ "$do_v6" = 1 ]; then
 
-	if [ -z "$src_zone" ] || [ -z "$dest_zone" ]; then
-		_log "未配置 WAN 或转发目标接口, 无法确定放行方向, 跳过 IPv6 放行"
+	if [ -z "$src_zone" ]; then
+		_log "未配置 WAN 接口, 无法确定放行来源, 跳过 IPv6 放行 (请在基本设置里选择 WAN 接口)"
 	else
 		rule_name_v6=$(echo "${GENERAL_NAT_NAME}_v6_allow" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
 		_log "firewall_rule_name_v6: $rule_name_v6 ($src_zone -> $dest_zone), 放行 ipv6 tcp+udp 端口 $outter_port"
