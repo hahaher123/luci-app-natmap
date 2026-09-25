@@ -215,51 +215,124 @@ if [ "$do_v6" = 1 ]; then
 fi
 
 # ================================================================
-# 应用规则：reload 优先，失败用 restart 兜底
+# 应用规则：reload 带重试 → restart 兜底 → 内核侧核对
 # ================================================================
 #
-# 为什么必须兜底：fw4 的 reload 有前置条件。root/sbin/fw4 里是
+# ① 为什么 reload 要重试：fw4 的 reload 有一个**瞬时失败窗口**。
+#    root/sbin/fw4 的骨架是
 #
-#     reload)
-#         [ ! -f $STATE ] && die "The fw4 firewall does not appear to be loaded."
+#        start()   { { flock -x 1000; ...; } 1000>$LOCK }
+#        restart)  QUIET=1 print | nft -c -f - || die ...; stop || rm -f $STATE; start ;;
 #
-# （STATE=/var/run/fw4.state，由 fw4.uc 在 start 时写入）。/var 在 OpenWrt 上是
-# tmpfs，一旦这个状态文件没了（/var 被清理或重新挂载、fw4 启动没走到写状态那一步），
-# **每一次 reload 都会立刻 die**（瞬时 exit 1，不是超时），于是 uci 里写好的规则
-# 永远落不到内核 —— 表现就是「防火墙里看不到放行规则」，日志里只有一行失败提示。
+#    restart 的 stop 与 start 之间：$STATE 已被删除，而 flock 是**空着的**。
+#    此刻另一路 fw4 reload 拿到锁 → [ ! -f $STATE ] → 立刻 die（瞬时 exit 1，不是
+#    超时；实机日志里它和上一条日志同秒，正是这个特征）。
+#    撞车源头很常见 —— interface hotplug（root/etc/hotplug.d/iface/20-firewall 里
+#    就是 `fw4 -q reload`，与插件同锁同路）以及 LuCI 防火墙页的「保存并应用」
+#    （走 restart）；而 natmap 打洞本身就是 WAN 事件驱动的，两者天然会同时发生。
+#    这类失败重试一两次就好；不重试就只能靠 restart 兜底（代价是整个规则集重建）。
 #
-# restart 没有这个前置条件（print | nft -c 校验 → stop → start，状态文件由 start
-# 重建），是这个场景下唯一可靠的入口，所以拿它兜底。
+# ② 为什么还要 restart 兜底：$STATE 真丢了（/var 被清理、启动没走到写状态那一步）
+#    时 reload 会**每次都** die，只有 restart 能重建状态文件。
+#
+# ③ 为什么成功之后还要核对内核：**fw4 reload 的退出码不可信**。
+#    start() 里那个块的退出码取**块内最后一条命令**：
+#
+#        ACTION=start    utpl -S $MAIN | nft $VERBOSE -f $STDIN   # 失败会被下面覆盖
+#        ACTION=includes utpl -S $MAIN                            # ← 退出码看这条
+#
+#    所以 nft 加载失败时 reload 照样返回 0：规则没进内核，调用方却以为成功。
+#    fw4 给每条渲染出来的规则都打了 comment "!fw4: <段名>"
+#    （templates/rule.uc、templates/redirect.uc），拿它到**内核当前规则集**里反查，
+#    才算真正证明"生效"。核对失败时日志会直说"请执行 /etc/init.d/firewall restart"。
 #
 # 另外把命令**自己的输出**一并记下来：以前这里只记「超时或失败」，命令打印的原因
 # （fw4 的 die 信息、nft 的报错）被丢掉，导致谁都看不出为什么失败。
+FW_RELOAD_TRIES=3
+FW_RELOAD_WAIT=2
+
+# 跑一条命令：合并 stdout/stderr 到 FW_OUT，返回它自己的退出码
+_fw_try() {
+	local t="$1" out rc
+	shift
+	if command -v timeout >/dev/null 2>&1; then
+		out=$(timeout "$t" "$@" 2>&1)
+		rc=$?
+	else
+		out=$("$@" 2>&1)
+		rc=$?
+	fi
+	FW_OUT="$out"
+	return "$rc"
+}
+
+# 把命令输出压成一两行记进日志 —— fw4 的 die 原因就在这里面
+_fw_log_out() {
+	[ -n "$FW_OUT" ] || return 0
+	_log "$1$(printf '%s' "$FW_OUT" | tail -n 2 | tr '\n' ' ')"
+}
+
+# 到内核当前规则集里反查 fw4 打的规则标记
+#   $@ = 要核对的段名
+#   返回 0=全部命中；1=有未命中（名字留在 FW_VERIFY_MISS）；2=无法核对（没有 fw4/nft）
+_fw_verify_kernel() {
+	local name miss="" rules
+	command -v fw4 >/dev/null 2>&1 || return 2
+	command -v nft >/dev/null 2>&1 || return 2
+	rules=$(nft list ruleset 2>/dev/null) || return 2
+	for name in "$@"; do
+		[ -n "$name" ] || continue
+		case "$rules" in
+		*"!fw4: $name"*) ;;
+		*) miss="$miss $name" ;;
+		esac
+	done
+	[ -n "$miss" ] || return 0
+	FW_VERIFY_MISS="$miss"
+	return 1
+}
+
+# 核对并说清结果（失败时给出可执行的那一步）
+_fw_verify() {
+	local names="$*"
+	[ -n "$(printf '%s' "$names" | tr -d ' ')" ] || return 0
+	_fw_verify_kernel "$@"
+	case "$?" in
+	0) _log "内核侧核对通过:${names} 已在内核生效" ;;
+	1) _log "内核侧核对未通过: 内核里找不到${FW_VERIFY_MISS} —— 命令返回成功不等于规则进了内核, 请执行 /etc/init.d/firewall restart 复核" ;;
+	*) _log "内核侧核对跳过: 没有 fw4 或 nft (fw3 / 裁剪固件), 无法反查规则标记" ;;
+	esac
+	return 0
+}
+
 _fw_apply() {
-	local out rc
+	local i rc
 
-	if command -v timeout >/dev/null 2>&1; then
-		out=$(timeout 60 /etc/init.d/firewall reload 2>&1)
+	i=1
+	while [ "$i" -le "$FW_RELOAD_TRIES" ]; do
+		_fw_try 60 /etc/init.d/firewall reload
 		rc=$?
-	else
-		out=$(/etc/init.d/firewall reload 2>&1)
-		rc=$?
-	fi
-	[ -n "$out" ] && _log "firewall reload 输出: $(printf '%s' "$out" | tail -n 3 | tr '\n' ' ')"
-	[ "$rc" = 0 ] && return 0
+		if [ "$rc" = 0 ]; then
+			_log "firewall reload 成功 (第 $i 次尝试)"
+			_fw_verify "$@"
+			return 0
+		fi
+		_log "firewall reload 第 $i/$FW_RELOAD_TRIES 次失败(rc=$rc)"
+		_fw_log_out "firewall reload 输出: "
+		[ "$i" -lt "$FW_RELOAD_TRIES" ] && sleep "$FW_RELOAD_WAIT"
+		i=$((i + 1))
+	done
 
-	_log "firewall reload 失败(rc=$rc), 改用 restart 重建规则集"
-	if command -v timeout >/dev/null 2>&1; then
-		out=$(timeout 120 /etc/init.d/firewall restart 2>&1)
-		rc=$?
-	else
-		out=$(/etc/init.d/firewall restart 2>&1)
-		rc=$?
-	fi
+	_log "firewall reload 连续 $FW_RELOAD_TRIES 次失败, 改用 restart 重建规则集"
+	_fw_try 120 /etc/init.d/firewall restart
+	rc=$?
 	if [ "$rc" = 0 ]; then
 		_log "firewall restart 成功, 规则已生效"
+		_fw_verify "$@"
 		return 0
 	fi
 
-	[ -n "$out" ] && _log "firewall restart 输出: $(printf '%s' "$out" | tail -n 3 | tr '\n' ' ')"
+	_fw_log_out "firewall restart 输出: "
 	if [ "$rc" = 124 ]; then
 		_log "firewall restart 超时(120 秒未结束) — 请手动执行 /etc/init.d/firewall restart"
 	else
@@ -268,5 +341,13 @@ _fw_apply() {
 	return 1
 }
 
+# 只核对我们这次真正写过的规则（没写的段名不该出现在内核里）
+VERIFY_RULE_NAMES=""
+[ "$do_v4" = 1 ] && VERIFY_RULE_NAMES="$rule_name_v4"
+if [ "$do_v6" = 1 ] && [ -n "${rule_name_v6:-}" ]; then
+	VERIFY_RULE_NAMES="$VERIFY_RULE_NAMES $rule_name_v6"
+fi
+
 uci commit firewall
-_fw_apply
+# 故意不加引号：VERIFY_RULE_NAMES 是空格分隔的多个段名
+_fw_apply $VERIFY_RULE_NAMES
