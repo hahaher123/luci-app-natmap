@@ -168,6 +168,108 @@ natmap_instance() {
 	procd_close_instance
 }
 
+# ================================================================
+# 退役清理：实例被禁用或删除后，它在防火墙里留下的段不会自己退场
+# ================================================================
+#
+# 背景：转发插件把 DNAT / IPv6 放行写成 uci 段之后就撒手了，规则会一直留在
+# /etc/config/firewall 和内核里。而 natmap_enable=0 的实例在 natmap_instance()
+# 里直接 return 1 —— **压根不交给 procd**，插件再也不会为它跑（实例被整个删掉
+# 更是如此）。于是那台内网机的端口映射永久留活：用户以为已经关掉了，外部其实
+# 还能打进来。
+#
+# 这里收走两类段：
+#   ① 实例还在、但被禁用 → 删它名下的段
+#   ② 实例已被整个删除 → 段成了孤儿，按"防火墙里有、但没有启用实例对应"收走
+#
+# 判据（宁可不删也不误删）：段名 = slug(实例名) + 固定后缀、段类型为
+# redirect / rule、段内 name 等于段名、target 为 DNAT / ACCEPT —— 四条全对上
+# 才动。手建的规则一般写中文别名，不会同时满足这四条；像
+# firewall.@rule[9].name='natmap incoming' 这类旧一代/外部工具留下的段也不在
+# 这条规则内，不会被碰。
+
+_natmap_slug() {
+	echo "$1" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}'
+}
+
+# 按四个判据收走一个段；删掉返回 0，其余情况返回 1（调用方据此决定要不要 reload）
+#   $1=段名 $2=期望段类型 $3=期望 target $4=删除原因
+_natmap_retire_seg() {
+	local n="$1" t="$2" tg="$3" why="$4" cur
+
+	cur=$(uci -q get "firewall.$n" 2>/dev/null)
+	[ "$cur" = "$t" ] || return 1
+	[ "$(uci -q get "firewall.$n.name" 2>/dev/null)" = "$n" ] || return 1
+	[ "$(uci -q get "firewall.$n.target" 2>/dev/null)" = "$tg" ] || return 1
+
+	uci -q delete "firewall.$n" || return 1
+	natmap_alert "防火墙退役清理: 已删除 $n ($why) —— 该段原本仍在内核里生效"
+	return 0
+}
+
+retire_firewall_segments() {
+	local changed=0 keep=" " s en nm sg seg suffix
+
+	# ① 仍然启用的实例（缺省即启用）→ 它们的 slug 必须保留
+	for s in $(uci -q show natmap 2>/dev/null | sed -n 's/^natmap\.\([^.]*\)=natmap$/\1/p'); do
+		en=$(uci -q get "natmap.$s.natmap_enable" 2>/dev/null)
+		[ "${en:-1}" = "1" ] || continue
+		nm=$(uci -q get "natmap.$s.general_nat_name" 2>/dev/null)
+		[ -n "$nm" ] || nm="$s"
+		keep="$keep$(_natmap_slug "$nm") "
+	done
+
+	# ② 被禁用的实例 → 删它自己的两个段
+	for s in $(uci -q show natmap 2>/dev/null | sed -n 's/^natmap\.\([^.]*\)=natmap$/\1/p'); do
+		en=$(uci -q get "natmap.$s.natmap_enable" 2>/dev/null)
+		[ "${en:-1}" = "1" ] && continue
+		nm=$(uci -q get "natmap.$s.general_nat_name" 2>/dev/null)
+		[ -n "$nm" ] || nm="$s"
+		sg="$(_natmap_slug "$nm")"
+		_natmap_retire_seg "${sg}_v4" redirect DNAT "实例 $s 已禁用" && changed=1
+		_natmap_retire_seg "${sg}_v6_allow" rule ACCEPT "实例 $s 已禁用" && changed=1
+	done
+
+	# ③ 孤儿段：防火墙里有、却没有任何启用实例对应（实例已被整个删除）。
+	#    注意 busybox sed 的 BRE 不支持 \| 交替，所以拆成两条替换。
+	for seg in $(uci -q show firewall 2>/dev/null \
+			| sed -n -e 's/^firewall\.\([^.]*\)=redirect$/\1/p' \
+				-e 's/^firewall\.\([^.]*\)=rule$/\1/p'); do
+		suffix=""
+		case "$seg" in
+		*_v6_allow) suffix="_v6_allow" ;;
+		*_v4) suffix="_v4" ;;
+		*) continue ;;
+		esac
+		sg="${seg%"$suffix"}"
+		# slug 只可能由 _natmap_slug() 生成（小写字母 / 数字 / 下划线）。
+		# 别的一律不是本插件建的 —— 手建的段名常带大写或连字符，直接跳过。
+		case "$sg" in
+		'' | *[!a-z0-9_]*)
+			continue
+			;;
+		esac
+		case "$keep" in
+		*" $sg "*) continue ;;
+		esac
+		if [ "$suffix" = "_v4" ]; then
+			_natmap_retire_seg "$seg" redirect DNAT "无对应实例(孤儿段)" && changed=1
+		else
+			_natmap_retire_seg "$seg" rule ACCEPT "无对应实例(孤儿段)" && changed=1
+		fi
+	done
+
+	[ "$changed" = 1 ] || return 0
+
+	uci commit firewall
+	natmap_alert "防火墙退役清理: 配置已提交, 正在重载防火墙使其在内核中退场"
+	if ! /etc/init.d/firewall reload 2>/dev/null; then
+		/etc/init.d/firewall restart 2>/dev/null \
+			|| natmap_alert "防火墙退役清理: 重载与重建都失败 —— 请手动执行 /etc/init.d/firewall restart"
+	fi
+	return 0
+}
+
 clear_status_files() {
 	find "${STATUS_PATH}" -type f -print0 | xargs -0 rm -f --
 }
@@ -224,6 +326,10 @@ start_service() {
 		}
 	}
 	mkdir -p "${STATUS_PATH}"
+
+	# 退役清理要在声明实例之前跑：被禁用/删除的实例根本不会交给 procd，
+	# 它留下的防火墙段只能在这里收走（见 retire_firewall_segments 的注释）。
+	retire_firewall_segments
 
 	config_load "${NAME}"
 	config_foreach validate_section_natmap natmap natmap_instance

@@ -107,114 +107,6 @@ resolve_zone() {
 }
 
 # ================================================================
-# 判断这次要做哪些事
-# ================================================================
-do_v4=0
-if [ -n "$FORWARD_TARGET_PORT" ] && [ -n "$FORWARD_TARGET_IP" ]; then
-	do_v4=1
-fi
-
-do_v6=0
-if [ "${LINK_ENABLE}" = 1 ]; then
-	case "${LINK_MODE}" in
-	qbittorrent)
-		[ "${LINK_QB_ALLOW_IPV6}" = 1 ] && do_v6=1
-		;;
-	transmission)
-		[ "${LINK_TR_ALLOW_IPV6}" = 1 ] && do_v6=1
-		;;
-	esac
-fi
-
-if [ "$do_v4" = 0 ] && [ "$do_v6" = 0 ]; then
-	_log "无 IPv4 转发目标，也无 IPv6 放行需求, 跳过"
-	exit 0
-fi
-
-# src / dest 两边都要用真实 zone 名，统一先解析
-src_zone="$GENERAL_WAN_INTERFACE"
-if resolve_zone "$GENERAL_WAN_INTERFACE"; then
-	[ -n "$RESOLVED_ZONE" ] && src_zone="$RESOLVED_ZONE"
-fi
-
-dest_zone="$FORWARD_FIREWALL_TARGET_INTERFACE"
-if resolve_zone "$FORWARD_FIREWALL_TARGET_INTERFACE"; then
-	dest_zone="$RESOLVED_ZONE"
-fi
-
-# 目标接口为空时回退到 lan zone。
-#
-# forward_firewall_target_interface 是「端口转发」页给 **IPv4 DNAT** 用的选项，
-# 很多只做 IPv6 放行的用户根本不会去填它。而 IPv6 放行的目标天然就是内网（LAN），
-# 早期版本在这里直接判空跳过，导致这类用户永远建不出放行规则，日志还只说
-# 「未配置 WAN 或转发目标接口」—— 看不出该去填哪个框。
-#
-# 注意报文的 src 侧不做同样回退：WAN 是IPv6 流量的入口，猜错方向会放行错东西，
-# 宁可跳过（v4 的 src 仍取页面配置，行为不变）。
-if [ -z "$dest_zone" ]; then
-	dest_zone="lan"
-	if resolve_zone "lan"; then
-		dest_zone="$RESOLVED_ZONE"
-	fi
-	_log "未配置转发目标接口, IPv6 放行目标回退为 $dest_zone"
-fi
-
-# ================================================================
-# ① IPv4 端口转发（DNAT）
-# ================================================================
-if [ "$do_v4" = 1 ]; then
-	final_forward_target_port=$((FORWARD_TARGET_PORT == 0 ? outter_port : FORWARD_TARGET_PORT))
-
-	rule_name_v4=$(echo "${GENERAL_NAT_NAME}_v4" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
-	_log "firewall_rule_name_v4: $rule_name_v4 (src zone: $src_zone)"
-
-	uci set firewall.$rule_name_v4=redirect
-	uci set firewall.$rule_name_v4.name=$rule_name_v4
-	uci set firewall.$rule_name_v4.proto=$protocol
-	uci set firewall.$rule_name_v4.src=$src_zone
-	uci set firewall.$rule_name_v4.dest=$dest_zone
-	uci set firewall.$rule_name_v4.target=DNAT
-	uci set firewall.$rule_name_v4.src_dport=$inner_port
-	uci set firewall.$rule_name_v4.dest_ip=$FORWARD_TARGET_IP
-	uci set firewall.$rule_name_v4.dest_port=$final_forward_target_port
-fi
-
-# ================================================================
-# ② qBittorrent / Transmission 的 IPv6 放行
-# ================================================================
-#
-# 注意这里全部用「守卫式跳过」而不是 exit —— 上面的 IPv4 规则可能已经 uci set
-# 过了，提前 exit 会让它永远等不到下面的 commit/reload，IPv4 转发就悄悄失效了。
-#
-if [ "$do_v6" = 1 ]; then
-
-	if [ -z "$src_zone" ]; then
-		_log "未配置 WAN 接口, 无法确定放行来源, 跳过 IPv6 放行 (请在基本设置里选择 WAN 接口)"
-	else
-		rule_name_v6=$(echo "${GENERAL_NAT_NAME}_v6_allow" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
-		_log "firewall_rule_name_v6: $rule_name_v6 ($src_zone -> $dest_zone), 放行 ipv6 tcp+udp 端口 $outter_port"
-
-		uci set firewall.$rule_name_v6=rule
-		uci set firewall.$rule_name_v6.name=$rule_name_v6
-		uci set firewall.$rule_name_v6.src=$src_zone
-		uci set firewall.$rule_name_v6.dest=$dest_zone
-		uci set firewall.$rule_name_v6.target=ACCEPT
-		# 同时放行 TCP 与 UDP：BT 的 uTP 走 UDP，只放 TCP 会留下半个缺口
-		uci set firewall.$rule_name_v6.proto="tcp udp"
-		uci set firewall.$rule_name_v6.family=ipv6
-		# IPv6 无 NAT，qBittorrent/Transmission 监听端口即打洞获得的外部端口
-		# ($outter_port)，不能使用 forward_target_port（那是 IPv4 DNAT 的目标
-		# 端口，与下载器监听端口无关）
-		uci set firewall.$rule_name_v6.dest_port=$outter_port
-
-		# 早期版本会写入 dest_ip（自动探测 LAN 网段）。换成按端口放行后不再需要
-		# 任何地址限制 —— 但残留的 dest_ip 会把规则重新窄化成"只放行旧网段"，
-		# 旧网段一旦失效规则就等于没生效，所以每次都要清掉。
-		uci -q delete firewall.$rule_name_v6.dest_ip 2>/dev/null
-	fi
-fi
-
-# ================================================================
 # 应用规则：reload 带重试 → restart 兜底 → 内核侧核对
 # ================================================================
 #
@@ -305,6 +197,33 @@ _fw_verify() {
 	return 0
 }
 
+# 反向核对：清理掉的段名应当**从内核里消失**。
+#
+# 正向核对证明"写进去的生效了"，反向核对证明"删掉的真的退场了"。少了后者，
+# 退役清理就可能出现"uci 里删了、内核里还活"的静默失败 —— 而那恰恰是最危险的
+# 一种：用户以为端口已经关了，实际外部还打得进来。
+_fw_verify_absent() {
+	local name hit="" rules
+
+	[ -n "${FW_VERIFY_ABSENT:-}" ] || return 0
+	command -v nft >/dev/null 2>&1 || {
+		_log "退役核对跳过(没有 nft): 无法确认${FW_VERIFY_ABSENT} 已从内核移除"
+		return 0
+	}
+	rules=$(nft list ruleset 2>/dev/null) || return 0
+	for name in $FW_VERIFY_ABSENT; do
+		case "$rules" in
+		*"!fw4: $name"*) hit="$hit $name" ;;
+		esac
+	done
+	if [ -n "$hit" ]; then
+		_log "退役核对未通过:${hit} 仍在内核规则集里 —— 请执行 /etc/init.d/firewall restart 复核"
+	else
+		_log "退役核对通过:${FW_VERIFY_ABSENT} 已从内核规则集移除"
+	fi
+	return 0
+}
+
 _fw_apply() {
 	local i rc
 
@@ -315,6 +234,7 @@ _fw_apply() {
 		if [ "$rc" = 0 ]; then
 			_log "firewall reload 成功 (第 $i 次尝试)"
 			_fw_verify "$@"
+			_fw_verify_absent
 			return 0
 		fi
 		_log "firewall reload 第 $i/$FW_RELOAD_TRIES 次失败(rc=$rc)"
@@ -329,6 +249,7 @@ _fw_apply() {
 	if [ "$rc" = 0 ]; then
 		_log "firewall restart 成功, 规则已生效"
 		_fw_verify "$@"
+		_fw_verify_absent
 		return 0
 	fi
 
@@ -341,12 +262,179 @@ _fw_apply() {
 	return 1
 }
 
-# 只核对我们这次真正写过的规则（没写的段名不该出现在内核里）
+# ================================================================
+# 判断这次要做哪些事
+# ================================================================
+do_v4=0
+if [ -n "$FORWARD_TARGET_PORT" ] && [ -n "$FORWARD_TARGET_IP" ]; then
+	do_v4=1
+fi
+
+do_v6=0
+if [ "${LINK_ENABLE}" = 1 ]; then
+	case "${LINK_MODE}" in
+	qbittorrent)
+		[ "${LINK_QB_ALLOW_IPV6}" = 1 ] && do_v6=1
+		;;
+	transmission)
+		[ "${LINK_TR_ALLOW_IPV6}" = 1 ] && do_v6=1
+		;;
+	esac
+fi
+
+# 段名只由实例名决定，先统一算出来 —— 下面的退役清理必须知道"本实例的段叫什么"。
+# （原来这两行分别写在 ①/② 各自的写入分支里，逻辑不变，只是提前。）
+rule_name_v4=$(echo "${GENERAL_NAT_NAME}_v4" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
+rule_name_v6=$(echo "${GENERAL_NAT_NAME}_v6_allow" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
+
+# ================================================================
+# 退役清理：本实例留在防火墙里、但这次不再需要的段
+# ================================================================
+#
+# 场景：用户在页面上把「端口转发」的目标 IP/端口清空，或者把 IPv6 放行关掉。
+# 这两件事以前只是"不再写"，**不会删掉上一次写进去的段** —— uci 与内核里继续
+# 留着一条活的 DNAT / ACCEPT。DNAT 那条尤其危险：用户以为转发已经关掉了，
+# 外部其实仍然能打到那台内网机。
+#
+# 删除判据要严，宁可漏删也不能误删用户手建的规则（四条必须同时成立）：
+#   * 段名 = slug(实例名) + 固定后缀
+#   * 段类型分别是 redirect / rule
+#   * 段内 name 等于段名 —— 这是插件的签名，手建的规则一般写中文别名
+#   * target 分别是 DNAT / ACCEPT
+# 任一条对不上就只记一条日志、原样保留。
+RETIRE_HIT=0
+FW_VERIFY_ABSENT=""
+wrote_v6=0
+
+_retire() {
+	local n="$1" t="$2" tg="$3" why="$4" cur
+
+	cur=$(uci -q get "firewall.$n" 2>/dev/null)
+	[ -n "$cur" ] || return 0
+	[ "$cur" = "$t" ] || {
+		_log "退役清理跳过: firewall.$n 不是 $t 类型(实际 $cur), 不是本插件建的"
+		return 0
+	}
+	[ "$(uci -q get "firewall.$n.name" 2>/dev/null)" = "$n" ] || {
+		_log "退役清理跳过: firewall.$n 的 name 与段名不一致, 不是本插件建的"
+		return 0
+	}
+	[ "$(uci -q get "firewall.$n.target" 2>/dev/null)" = "$tg" ] || {
+		_log "退役清理跳过: firewall.$n 的 target 不是 $tg, 不是本插件建的"
+		return 0
+	}
+
+	uci -q delete "firewall.$n" || return 0
+	RETIRE_HIT=1
+	FW_VERIFY_ABSENT="$FW_VERIFY_ABSENT $n"
+	_log "退役清理: 已删除防火墙段 firewall.$n ($why)"
+}
+
+[ "$do_v4" = 1 ] || _retire "$rule_name_v4" redirect DNAT "本次没有 IPv4 转发目标"
+[ "$do_v6" = 1 ] || _retire "$rule_name_v6" rule ACCEPT "本次没有 IPv6 放行需求"
+
+if [ "$do_v4" = 0 ] && [ "$do_v6" = 0 ]; then
+	_log "无 IPv4 转发目标，也无 IPv6 放行需求, 跳过"
+	if [ "$RETIRE_HIT" = 1 ]; then
+		# 只删了东西、没写任何规则：仍要把删除提交并应用到内核 ——
+		# 否则 uci 里删掉了，内核里那条规则还在继续跑。
+		uci commit firewall
+		_fw_apply
+	fi
+	exit 0
+fi
+
+# src / dest 两边都要用真实 zone 名，统一先解析
+src_zone="$GENERAL_WAN_INTERFACE"
+if resolve_zone "$GENERAL_WAN_INTERFACE"; then
+	[ -n "$RESOLVED_ZONE" ] && src_zone="$RESOLVED_ZONE"
+fi
+
+dest_zone="$FORWARD_FIREWALL_TARGET_INTERFACE"
+if resolve_zone "$FORWARD_FIREWALL_TARGET_INTERFACE"; then
+	dest_zone="$RESOLVED_ZONE"
+fi
+
+# 目标接口为空时回退到 lan zone。
+#
+# forward_firewall_target_interface 是「端口转发」页给 **IPv4 DNAT** 用的选项，
+# 很多只做 IPv6 放行的用户根本不会去填它。而 IPv6 放行的目标天然就是内网（LAN），
+# 早期版本在这里直接判空跳过，导致这类用户永远建不出放行规则，日志还只说
+# 「未配置 WAN 或转发目标接口」—— 看不出该去填哪个框。
+#
+# 注意报文的 src 侧不做同样回退：WAN 是IPv6 流量的入口，猜错方向会放行错东西，
+# 宁可跳过（v4 的 src 仍取页面配置，行为不变）。
+if [ -z "$dest_zone" ]; then
+	dest_zone="lan"
+	if resolve_zone "lan"; then
+		dest_zone="$RESOLVED_ZONE"
+	fi
+	_log "未配置转发目标接口, IPv6 放行目标回退为 $dest_zone"
+fi
+
+# ================================================================
+# ① IPv4 端口转发（DNAT）
+# ================================================================
+if [ "$do_v4" = 1 ]; then
+	final_forward_target_port=$((FORWARD_TARGET_PORT == 0 ? outter_port : FORWARD_TARGET_PORT))
+
+	_log "firewall_rule_name_v4: $rule_name_v4 (src zone: $src_zone)"
+
+	uci set firewall.$rule_name_v4=redirect
+	uci set firewall.$rule_name_v4.name=$rule_name_v4
+	uci set firewall.$rule_name_v4.proto=$protocol
+	uci set firewall.$rule_name_v4.src=$src_zone
+	uci set firewall.$rule_name_v4.dest=$dest_zone
+	uci set firewall.$rule_name_v4.target=DNAT
+	uci set firewall.$rule_name_v4.src_dport=$inner_port
+	uci set firewall.$rule_name_v4.dest_ip=$FORWARD_TARGET_IP
+	uci set firewall.$rule_name_v4.dest_port=$final_forward_target_port
+fi
+
+# ================================================================
+# ② qBittorrent / Transmission 的 IPv6 放行
+# ================================================================
+#
+# 注意这里全部用「守卫式跳过」而不是 exit —— 上面的 IPv4 规则可能已经 uci set
+# 过了，提前 exit 会让它永远等不到下面的 commit/reload，IPv4 转发就悄悄失效了。
+#
+if [ "$do_v6" = 1 ]; then
+
+	if [ -z "$src_zone" ]; then
+		_log "未配置 WAN 接口, 无法确定放行来源, 跳过 IPv6 放行 (请在基本设置里选择 WAN 接口)"
+	else
+		_log "firewall_rule_name_v6: $rule_name_v6 ($src_zone -> $dest_zone), 放行 ipv6 tcp+udp 端口 $outter_port"
+
+		uci set firewall.$rule_name_v6=rule
+		uci set firewall.$rule_name_v6.name=$rule_name_v6
+		uci set firewall.$rule_name_v6.src=$src_zone
+		uci set firewall.$rule_name_v6.dest=$dest_zone
+		uci set firewall.$rule_name_v6.target=ACCEPT
+		# 同时放行 TCP 与 UDP：BT 的 uTP 走 UDP，只放 TCP 会留下半个缺口
+		uci set firewall.$rule_name_v6.proto="tcp udp"
+		uci set firewall.$rule_name_v6.family=ipv6
+		# IPv6 无 NAT，qBittorrent/Transmission 监听端口即打洞获得的外部端口
+		# ($outter_port)，不能使用 forward_target_port（那是 IPv4 DNAT 的目标
+		# 端口，与下载器监听端口无关）
+		uci set firewall.$rule_name_v6.dest_port=$outter_port
+
+		# 早期版本会写入 dest_ip（自动探测 LAN 网段）。换成按端口放行后不再需要
+		# 任何地址限制 —— 但残留的 dest_ip 会把规则重新窄化成"只放行旧网段"，
+		# 旧网段一旦失效规则就等于没生效，所以每次都要清掉。
+		uci -q delete firewall.$rule_name_v6.dest_ip 2>/dev/null
+
+		wrote_v6=1
+	fi
+fi
+
+# 只核对我们这次真正写过的规则（没写的段名不该出现在内核里）。
+#
+# 判据必须是 wrote_v6 而不是 "rule_name_v6 非空" —— 段名现在提前算好了，
+# 用变量非空当守卫会失效：WAN 接口没配时会跳过 v6 写入，却仍去核对一个
+# 根本没写过的段名，日志里就会冒出一条假的"内核侧核对未通过"。
 VERIFY_RULE_NAMES=""
 [ "$do_v4" = 1 ] && VERIFY_RULE_NAMES="$rule_name_v4"
-if [ "$do_v6" = 1 ] && [ -n "${rule_name_v6:-}" ]; then
-	VERIFY_RULE_NAMES="$VERIFY_RULE_NAMES $rule_name_v6"
-fi
+[ "$wrote_v6" = 1 ] && VERIFY_RULE_NAMES="$VERIFY_RULE_NAMES $rule_name_v6"
 
 uci commit firewall
 # 故意不加引号：VERIFY_RULE_NAMES 是空格分隔的多个段名

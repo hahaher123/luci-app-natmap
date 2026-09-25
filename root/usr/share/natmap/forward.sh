@@ -29,7 +29,16 @@ if [ "${LINK_ENABLE}" = 1 ] && [ "${FORWARD_MODE}" = firewall ]; then
 	esac
 fi
 
-if [ "$need_v4" = 0 ] && [ "$need_v6" = 0 ]; then
+# 两个方向都不需要时**不能直接退出**。
+#
+# 功能刚被关掉（清空转发目标 / 关掉 IPv6 放行）时，上一次写进防火墙的段还留在
+# uci 与内核里，而**只有插件知道该删哪些段名** —— 这里一 exit，退役清理就永远
+# 跑不到，那条 DNAT / ACCEPT 会一直生效：用户以为已经关了，外部其实还能打进来。
+#
+# 所以 firewall 模式下仍把插件叫起来（插件内部 do_v4=do_v6=0 时不会写任何新规则，
+# 只删不再需要的段；没有可删的就什么都不做）。ikuai 插件没有这套清理逻辑，
+# 保持原样直接跳过。
+if [ "$need_v4" = 0 ] && [ "$need_v6" = 0 ] && [ "${FORWARD_MODE}" != firewall ]; then
 	exit 0
 fi
 

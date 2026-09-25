@@ -68,7 +68,25 @@ if [ "$locked" = 1 ]; then
 	echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : natmap update json: $(cat /var/run/natmap/$PPID.json)"
 
 	# forward setting
-	[ "${FORWARD_ENABLE}" == 1 ] && source /usr/share/natmap/forward.sh "$@"
+	#
+	# FORWARD_ENABLE=0 时**不能直接跳过**：总开关刚被关掉，上一次写进防火墙的段
+	# 还留在 uci 与内核里，而**只有插件知道该删哪些段名**。跳过的话那条 DNAT /
+	# ACCEPT 会一直生效 —— 用户以为已经关了，外部其实还能打进来。
+	#
+	# 但也不能无条件调用：出厂配置就是 forward_enable=0 + forward_mode=firewall，
+	# 无条件调用会让每个不用转发功能的用户每次打洞都多跑一次插件、多一条无意义的
+	# 日志。所以先用段名探一下"防火墙里还有没有本实例的段"（段名算法与插件一致），
+	# 有才把插件叫起来做清理。
+	if [ "${FORWARD_ENABLE}" == 1 ]; then
+		source /usr/share/natmap/forward.sh "$@"
+	else
+		_retire_v4=$(echo "${GENERAL_NAT_NAME}_v4" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
+		_retire_v6=$(echo "${GENERAL_NAT_NAME}_v6_allow" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}')
+		if [ -n "$(uci -q get firewall.$_retire_v4 2>/dev/null)" ] ||
+			[ -n "$(uci -q get firewall.$_retire_v6 2>/dev/null)" ]; then
+			source /usr/share/natmap/forward.sh "$@"
+		fi
+	fi
 
 	# link setting
 	[ "${LINK_ENABLE}" == 1 ] && source /usr/share/natmap/link.sh "$@"
