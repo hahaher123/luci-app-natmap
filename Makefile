@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-natmap
 PKG_VERSION:=1.6.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 LUCI_TITLE:=LuCI Support for natmap
 LUCI_DEPENDS:=+natmap +jq +curl +openssl-util +bash
@@ -16,6 +16,24 @@ define Package/${PKG_NAME}/conffiles
 /etc/config/natmap
 endef
 
+# ACL 里每个 /var/... 授权都必须同时写一份 /tmp/... 对应项。
+#
+# rpcd 自 e37ed9d8（GHSA-q5gr-86pq-vvwr「file: re-authorize ACL against resolved
+# path to close symlink bypass」）起，会对 file.read / file.write / file.stat /
+# file.list / file.md5 用 realpath() 解析后的路径**再跑一遍** ACL 检查。OpenWrt
+# 上 /var 是指向 /tmp 的符号链接，于是 ACL 里的 /var/run/natmap/* 在解析后变成
+# /tmp/run/natmap/*；只授权前者，第二次检查就 EACCES。
+#
+# 后果最容易被误判：LuCI 的 fs.read() 用 .catch() 静默吞掉错误，页面表现为
+# 「外部 ip / 端口」与「执行日志」永远为空（日志文件其实是好的、打洞也是成功的），
+# 而「运行状态」走 ubus service list、不经过 file ACL，所以**只有它是对的** ——
+# 看着像 natmap 没工作，其实是没读到。官方 luci-app-banip（12b22606）、
+# luci-app-adblock（7b4b303d）都是同一个坑，修法相同。
+#
+# 保留 /var 项是必要的：/var 是真实目录的目标（CONFIG_TARGET_ROOTFS_PERSIST_VAR
+# 等）上只有它才有效。改 ACL 时别把任何一边删掉。
+# reports/luci-app-natmap-ipv6-allow/harness.py 有用例守着这条不变量。
+#
 # 翻译包（luci-i18n-natmap-*）的版本号。
 #
 # luci.mk 默认用 PKG_PO_VERSION 给翻译包定版，它由「最后一次改动 po/ 的提交」推导而来

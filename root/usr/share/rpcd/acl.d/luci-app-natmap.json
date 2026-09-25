@@ -4,7 +4,9 @@
     "read": {
       "file": {
         "/var/run/natmap/*": ["read"],
-        "/var/log/natmap/*": ["read"]
+        "/tmp/run/natmap/*": ["read"],
+        "/var/log/natmap/*": ["read"],
+        "/tmp/log/natmap/*": ["read"]
       },
       "ubus": {
         "service": ["list"]
@@ -13,7 +15,8 @@
     },
     "write": {
       "file": {
-        "/var/log/natmap/*": ["write"]
+        "/var/log/natmap/*": ["write"],
+        "/tmp/log/natmap/*": ["write"]
       },
       "uci": ["natmap"]
     }
