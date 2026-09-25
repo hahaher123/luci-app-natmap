@@ -33,12 +33,15 @@ LINK_QB_WEB_URL=$(echo "$LINK_QB_WEB_URL" | sed 's/\/$//')
 while true; do
     rm -f "$COOKIE_JAR"
     # 登录：cookie jar 自动保存会话 cookie（无论叫 SID 还是 QBT_SID_<port>）
-    login_code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" -c "$COOKIE_JAR" -X POST \
+    # -w 的状态码是**追加在响应体之后**的，用 \n 分隔后拆开取，避免两者粘在一起
+    login_resp=$(curl -s -m 20 -c "$COOKIE_JAR" -X POST \
         -H "Referer: ${LINK_QB_WEB_URL}/" \
         -H "Origin: ${LINK_QB_WEB_URL}" \
         --data-urlencode "username=$LINK_QB_USERNAME" \
         --data-urlencode "password=$LINK_QB_PASSWORD" \
-        "$LINK_QB_WEB_URL/api/v2/auth/login")
+        "$LINK_QB_WEB_URL/api/v2/auth/login" -w "\n%{http_code}")
+    login_code=${login_resp##*$'\n'}
+    login_body=${login_resp%$'\n'*}
     # 判断是否拿到会话 cookie（jar 里有非注释行即成功）
     got_cookie=0
     if [ -s "$COOKIE_JAR" ] && grep -vq '^#' "$COOKIE_JAR"; then
@@ -51,15 +54,20 @@ while true; do
             -H "Referer: ${LINK_QB_WEB_URL}/" \
             -H "Origin: ${LINK_QB_WEB_URL}" \
             -d 'json={"listen_port":'$outter_port'}' \
-            "$LINK_QB_WEB_URL/api/v2/app/setPreferences" -w "%{http_code}")
-        if [ "$response" = "200" ]; then
+            "$LINK_QB_WEB_URL/api/v2/app/setPreferences" -w "\n%{http_code}")
+        # 必须把响应体与状态码拆开再比：-w 的 %{http_code} 是追加在响应体之后的，
+        # 旧写法拿「响应体+状态码」整体与 "200" 比较，只要 qB 回了非空响应体就永远
+        # 判失败，白白重试到上限 —— 而端口其实早就改好了。
+        set_code=${response##*$'\n'}
+        set_body=${response%$'\n'*}
+        if [ "$set_code" = "200" ]; then
             log "$LINK_MODE 修改成功, 端口=$outter_port"
             exit 0
         else
-            log "$LINK_MODE setPreferences 返回 $response (非200)"
+            log "$LINK_MODE setPreferences 返回 $set_code (预期 200): $set_body"
         fi
     else
-        log "$LINK_MODE 登录失败(HTTP $login_code), 未获得会话 cookie"
+        log "$LINK_MODE 登录失败(HTTP $login_code), 未获得会话 cookie: $login_body"
     fi
     retry_count=$((retry_count + 1))
     if [ "$retry_count" -lt "$max_retries" ] || [ "$max_retries" -eq 0 ]; then

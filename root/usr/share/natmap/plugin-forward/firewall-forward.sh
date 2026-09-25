@@ -214,7 +214,59 @@ if [ "$do_v6" = 1 ]; then
 	fi
 fi
 
-# reload（加超时，防止防火墙卡住拖垮整个更新链路）
+# ================================================================
+# 应用规则：reload 优先，失败用 restart 兜底
+# ================================================================
+#
+# 为什么必须兜底：fw4 的 reload 有前置条件。root/sbin/fw4 里是
+#
+#     reload)
+#         [ ! -f $STATE ] && die "The fw4 firewall does not appear to be loaded."
+#
+# （STATE=/var/run/fw4.state，由 fw4.uc 在 start 时写入）。/var 在 OpenWrt 上是
+# tmpfs，一旦这个状态文件没了（/var 被清理或重新挂载、fw4 启动没走到写状态那一步），
+# **每一次 reload 都会立刻 die**（瞬时 exit 1，不是超时），于是 uci 里写好的规则
+# 永远落不到内核 —— 表现就是「防火墙里看不到放行规则」，日志里只有一行失败提示。
+#
+# restart 没有这个前置条件（print | nft -c 校验 → stop → start，状态文件由 start
+# 重建），是这个场景下唯一可靠的入口，所以拿它兜底。
+#
+# 另外把命令**自己的输出**一并记下来：以前这里只记「超时或失败」，命令打印的原因
+# （fw4 的 die 信息、nft 的报错）被丢掉，导致谁都看不出为什么失败。
+_fw_apply() {
+	local out rc
+
+	if command -v timeout >/dev/null 2>&1; then
+		out=$(timeout 60 /etc/init.d/firewall reload 2>&1)
+		rc=$?
+	else
+		out=$(/etc/init.d/firewall reload 2>&1)
+		rc=$?
+	fi
+	[ -n "$out" ] && _log "firewall reload 输出: $(printf '%s' "$out" | tail -n 3 | tr '\n' ' ')"
+	[ "$rc" = 0 ] && return 0
+
+	_log "firewall reload 失败(rc=$rc), 改用 restart 重建规则集"
+	if command -v timeout >/dev/null 2>&1; then
+		out=$(timeout 120 /etc/init.d/firewall restart 2>&1)
+		rc=$?
+	else
+		out=$(/etc/init.d/firewall restart 2>&1)
+		rc=$?
+	fi
+	if [ "$rc" = 0 ]; then
+		_log "firewall restart 成功, 规则已生效"
+		return 0
+	fi
+
+	[ -n "$out" ] && _log "firewall restart 输出: $(printf '%s' "$out" | tail -n 3 | tr '\n' ' ')"
+	if [ "$rc" = 124 ]; then
+		_log "firewall restart 超时(120 秒未结束) — 请手动执行 /etc/init.d/firewall restart"
+	else
+		_log "firewall restart 失败(rc=$rc) — 请手动执行 /etc/init.d/firewall restart"
+	fi
+	return 1
+}
+
 uci commit firewall
-timeout 30 /etc/init.d/firewall reload ||
-	_log "firewall reload 超时或失败, 请手动执行 /etc/init.d/firewall reload"
+_fw_apply

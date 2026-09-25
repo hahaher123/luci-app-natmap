@@ -107,6 +107,18 @@ msgstr "启用关联设置"
 msgid "Enable Notify"
 msgstr "启用通知"
 
+#: natmap.js:958
+msgid "Run state"
+msgstr "运行状态"
+
+#: natmap.js:962
+msgid "Not started"
+msgstr "未启动"
+
+#: natmap.js:963
+msgid "Running"
+msgstr "运行中"
+
 #: natmap.js:741
 msgid "External IP"
 msgstr "外部 ip"

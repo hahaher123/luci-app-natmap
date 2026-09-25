@@ -74,9 +74,16 @@ if [ "$locked" = 1 ]; then
 	[ "${LINK_ENABLE}" == 1 ] && source /usr/share/natmap/link.sh "$@"
 
 	# custom setting
+	# 路径是否存在在这里判断 —— init.d 侧不再用 file 类型硬校验：那会让一个「可选、
+	# 而且可能根本没启用」的功能把整个实例拖成"配置校验失败 → 不启动"。
 	[ "${CUSTOM_SCRIPT_ENABLE}" == 1 ] && [ -n "${CUSTOM_SCRIPT_PATH}" ] && {
-		# 注意：不能用 bash 的 `export -n`（busybox ash 不支持，会在 OpenWrt 上报错）
-		source "${CUSTOM_SCRIPT_PATH}" "$@"
+		if [ -r "${CUSTOM_SCRIPT_PATH}" ]; then
+			# 注意：不能用 bash 的 `export -n`（busybox ash 不支持，会在 OpenWrt 上报错）
+			source "${CUSTOM_SCRIPT_PATH}" "$@"
+		else
+			echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 自定义脚本不存在或不可读, 已跳过: ${CUSTOM_SCRIPT_PATH}" >>/var/log/natmap/natmap.log
+			echo "$(TZ='CST-8' date +'%Y-%m-%d %H:%M:%S') : $GENERAL_NAT_NAME - 自定义脚本不存在或不可读, 已跳过: ${CUSTOM_SCRIPT_PATH}"
+		fi
 	}
 
 	# 主动释放并发锁：通知不写任何共享状态，且失败重试可能持续数十秒，

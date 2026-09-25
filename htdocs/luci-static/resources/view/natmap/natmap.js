@@ -22,6 +22,14 @@ function getInstances() {
   });
 }
 
+// 返回 { status, instances }：
+//   status    section_id -> 该实例最近一次打洞结果（/var/run/natmap/<pid>.json）
+//   instances section_id -> procd 侧的实例状态（running / pid）
+//
+// instances 单独返回，是为了能在页面上显示「运行状态」。一个实例如果因为配置校验
+// 失败而根本没被 procd 声明（例如「自定义脚本路径」指向一个已不存在的文件），
+// 它既没有打洞结果、也不会在日志里留下任何自己的行 —— 页面上就是一片空白，
+// 用户无从判断是「没打洞成功」还是「服务压根没起来」。这两件事必须能分开看。
 function getStatus() {
   return getInstances().then(function (instances) {
     var promises = [];
@@ -43,7 +51,7 @@ function getStatus() {
       }
     }
     return Promise.all(promises).then(function () {
-      return status;
+      return { status: status, instances: instances };
     });
   });
 }
@@ -179,8 +187,10 @@ return view.extend({
   load: function () {
     return getStatus();
   },
-  render: function (status) {
+  render: function (data) {
     var m, s, o;
+    var status = (data && data.status) || {};
+    var instances = (data && data.instances) || {};
 
     m = new form.Map("natmap", _("NatMap Settings"));
     s = m.section(form.GridSection, "natmap");
@@ -934,12 +944,25 @@ return view.extend({
       _("<br />protocol=$5");
 
     // o.depends('custom_script_enable', '1');
-    o.datatype = "file";
+    // 用 string 而不是 file：file 会在保存时硬性要求路径存在，于是「路径指向一个
+    // 已被删除的文件」会让整个实例连保存都做不了。与运行时的宽容策略（文件不可读
+    // 就跳过并写日志）保持一致。
+    o.datatype = "string";
     o.modalonly = true;
 
     // **********************************************************************
     // status
     // **********************************************************************
+    // 运行状态：与「External IP/Port」放在一起，先看它再判断打得通没有 ——
+    // 只有它显示「运行中」，下面的外部 IP/端口才有意义。
+    o = s.option(form.DummyValue, "_run_state", _("Run state"));
+    o.modalonly = false;
+    o.textvalue = function (section_id) {
+      var i = instances[section_id];
+      if (!i || !i.running) return _("Not started");
+      return _("Running");
+    };
+
     o = s.option(form.DummyValue, "_external_ip", _("External IP"));
     o.modalonly = false;
     o.textvalue = function (section_id) {

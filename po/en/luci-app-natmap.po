@@ -367,6 +367,18 @@ msgstr "custom script"
 msgid "custom script path,such as /etc/natmap/custom.sh"
 msgstr "custom script path,such as /etc/natmap/custom.sh"
 
+#: natmap.js:958
+msgid "Run state"
+msgstr "Run state"
+
+#: natmap.js:962
+msgid "Not started"
+msgstr "Not started"
+
+#: natmap.js:963
+msgid "Running"
+msgstr "Running"
+
 #: natmap.js:741
 msgid "External IP"
 msgstr "External IP"

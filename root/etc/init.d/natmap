@@ -16,6 +16,19 @@ load_interfaces() {
 }
 
 validate_section_natmap() {
+	# 两点都是踩过坑的，改之前先读：
+	#
+	# ① 末尾的输出重定向不能去掉。uci 的校验器在**校验失败**时会把该 section 的
+	#    全部选项值连同每个字段的校验结果打印到 stdout，而 init 脚本的 stdout 会被
+	#    procd 收进系统日志 —— notify_telegram_bot_token / link_qb_password /
+	#    forward_ikuai_password 这类凭据就会明文出现在 syslog 里。失败告警改由
+	#    natmap_instance() 自己写一条不含任何配置值的。
+	#
+	# ② custom_script_path 不能用 file 类型。自定义脚本是可选功能，路径只在该功能
+	#    启用时才有意义；若用 file 校验，「功能关闭 + 路径指向一个已不存在的文件」
+	#    会让整个实例被判校验失败 → 实例根本不启动（页面没有外部 IP/端口，日志里
+	#    连一行都不属于它），而用户只是没去动那个与当前需求无关的选项。
+	#    文件是否存在改到运行时判断（update.sh 里 -r 检查 + 写日志）。
 	uci_load_validate "${NAME}" natmap "$1" "$2" \
 		'natmap_enable:bool:0' \
 		'general_ip_address_family:string' \
@@ -80,12 +93,23 @@ validate_section_natmap() {
 		'link_cloudflare_ddns_srv_weight:uinteger:1' \
 		'link_cloudflare_ddns_srv_target_domain:host' \
 		'custom_script_enable:bool:0' \
-		'custom_script_path:file'
+		'custom_script_path:string' \
+		>/dev/null 2>&1
+}
+
+# 配置校验失败时留痕。校验器的原始输出（含各类凭据）已在上面丢弃，这里只写一句
+# 不含任何配置值的话；同时写进页面「执行日志」读的那个文件，让「实例没起来」
+# 这件事在页面上就能看见，不必去翻系统日志。
+natmap_alert() {
+	logger -t natmap "$*" 2>/dev/null
+	mkdir -p /var/log/natmap 2>/dev/null
+	echo "$(TZ='CST-8' date '+%Y-%m-%d %H:%M:%S') : natmap - $*" \
+		>>/var/log/natmap/natmap.log 2>/dev/null
 }
 
 natmap_instance() {
 	[ "$2" = 0 ] || {
-		echo "validation failed"
+		natmap_alert "实例 $1 配置校验失败, 未启动 (请检查该实例的配置项)"
 		return 1
 	}
 
