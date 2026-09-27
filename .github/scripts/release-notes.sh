@@ -45,6 +45,14 @@ else
 	printf '%s\n' "${TAG}" >"${OUT}/release-title.txt"
 fi
 
+# 过滤后一条不剩时有两种可能，必须区分：① 区间里确实只有维护性提交（正常，
+# 例如一次纯版本号/CI 的发布）；② 区间里有提交，但 subject 没按 feat:/fix: 写
+# （例如写成 "包名: 修复 xxx"）—— 后者会让发布说明**静默退化**成兜底文案，
+# 页面看着正常、谁也不会发现（2026-09-25 实际踩到过：v1.6.0-r4 的正文成了
+# 「本次发布没有面向用户的改动」，而那次恰好是面向用户的 ACL 修复）。
+# UNPREFIXED 非空即代表第 ② 种，收尾时在 CI 日志里打一条 ::warning::。
+UNPREFIXED=""
+
 {
 	echo "## 本次变更"
 	echo
@@ -59,9 +67,15 @@ fi
 	else
 		# 兜底：过滤后一条不剩时不能留空章节
 		echo "本次发布没有面向用户的改动（仅版本号或维护性提交）。"
+		UNPREFIXED="$(git log --no-merges --pretty='%s' -1 "${LOG_RANGE}" 2>/dev/null || true)"
 	fi
 	echo
 
 } >"${OUT}/release-body.md"
+
+if [ -n "${UNPREFIXED}" ]; then
+	printf '::warning::%s 区间内有提交，但没有一条以 feat:/fix: 开头，发布说明已退化为兜底文案。最新一条：%s\n' \
+		"${LOG_RANGE}" "${UNPREFIXED}"
+fi
 
 echo "已生成 ${OUT}/release-title.txt 与 ${OUT}/release-body.md"
