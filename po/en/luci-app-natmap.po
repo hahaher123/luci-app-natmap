@@ -43,6 +43,10 @@ msgstr "TCP"
 msgid "UDP"
 msgstr "UDP"
 
+#: natmap.js:899
+msgid "Requires qBittorrent 5.2.0 or newer. Generate it in qBittorrent: Preferences > WebUI > API Key. It looks like qbt_ followed by 28 characters, and rotating it invalidates the previous one immediately."
+msgstr "Requires qBittorrent 5.2.0 or newer. Generate it in qBittorrent: Preferences > WebUI > API Key. It looks like qbt_ followed by 28 characters, and rotating it invalidates the previous one immediately."
+
 #: natmap.js:97
 msgid "Restrict to address family"
 msgstr "Restrict to address family"
@@ -311,6 +315,10 @@ msgstr "Cloudflare Redirect Rule"
 msgid "API Key"
 msgstr "API Key"
 
+#: natmap.js:870
+msgid "Authentication"
+msgstr "Authentication"
+
 #: natmap.js:565
 msgid "EMBY URL"
 msgstr "EMBY URL"
@@ -334,6 +342,10 @@ msgstr "Web UI URL"
 #: natmap.js:614 natmap.js:653
 msgid "Username"
 msgstr "Username"
+
+#: natmap.js:875
+msgid "Username & Password"
+msgstr "Username & Password"
 
 #: natmap.js:619 natmap.js:658
 msgid "Password"

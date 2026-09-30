@@ -73,8 +73,10 @@ validate_section_natmap() {
 		'link_emby_use_https:bool:0' \
 		'link_emby_update_host_with_ip:bool:0' \
 		'link_qb_web_url:string' \
+		'link_qb_auth_mode:string' \
 		'link_qb_username:string' \
 		'link_qb_password:string' \
+		'link_qb_api_key:string' \
 		'link_qb_allow_ipv6:bool:0' \
 		'link_tr_rpc_url:string' \
 		'link_tr_username:string' \

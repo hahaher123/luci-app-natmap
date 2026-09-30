@@ -31,6 +31,8 @@
 | 修复 | 状态显示 | 状态区新增「运行状态」：配置校验没过的实例显示「未启动」，不再只留一片空白让用户分不清「没打洞成功」和「服务压根没起来」 |
 | 新增 | 执行日志 | LuCI 页面顶部可查看打洞与插件的执行日志，支持自动刷新与清空 |
 | 修复 | 端口映射退场 | 关掉转发 / 放行，或禁用、删除实例之后，它在防火墙里留下的 DNAT 与 IPv6 放行会被一并删除并应用到内核。以前这两件事只是「不再写」，段却一直留着 —— 用户以为已经关了，外部其实还能打进来。删除前会核对段名、段类型、`name`、`target` 四项，不满足就原样保留，不会误删手建的规则 |
+| 新增 | qBittorrent 认证方式 | 用户名密码与 API Key（qBittorrent ≥ 5.2.0）二选一，页面里切换；切模式不会清掉另一种方式的凭据 |
+| 修复 | qBittorrent 登录判定 | 密码错时不再被误判成「登录成功」。旧判据把 curl 写出的那行**空行**当成了会话 cookie，恒为真，于是登录失败照样往下走去改端口、收到 403，日志把排查引向 CSRF 而不是密码。现在按「jar 里真有 cookie / 返回体 `Ok.` / 状态码 204」三个信号判定，失败直接写「登录失败」并停止后续请求 |
 
 > 版本说明：`1.6.0` 汇总了此前 `1.5.11` ~ `1.5.13` 的全部改动，安装最新版即可获得以上全部修复与新增（无需逐个安装中间版本）。
 >
@@ -99,6 +101,14 @@ apk add --allow-untrusted --force-overwrite --upgrade ./luci-app-natmap-*.apk   
 
 如需调整，编辑脚本顶部的 `RULE_NAME` / `RULE_DEST_IP` / `SYNC_PROTO`。
 
+**qBittorrent 联动认证**：`link_qb_auth_mode` 二选一，对应页面上的「认证方式」。
+
+- `password`（默认）：用户名 + 密码，登录换会话 cookie，兼容 qBittorrent 4.x 起全部版本。
+- `apikey`：API Key，需要 **qBittorrent 5.2.0 或更高版本**。在 qB 的「偏好设置 → WebUI → API Key」里生成，形如 `qbt_` 加 28 位字符；**轮换后旧 key 立即失效**，要同步更新这里。
+- API Key 是**无状态**的：每个请求带 `Authorization: Bearer`，不建会话，也不请求 `auth/*` 端点（API Key 访问这些端点会被服务端拒绝）。
+- 两种方式的凭据都会**留在配置里**：来回切模式不会把另一种的密码 / Key 删掉。
+- 老配置升级上来没有 `link_qb_auth_mode`，按 `password` 处理，原有账密联动不受影响。
+
 **执行日志**：页面**顶部**显示 `/var/log/natmap/natmap.log` 尾部，可手动或每 5 秒自动刷新，也可清空。日志落在 tmpfs（`/var` 是 `/tmp` 的符号链接），重启即清空、不写 flash；单文件超过 1 MB 时滚动为 `natmap.log.1`（只留一份）。时间戳固定按 UTC+8 输出，不受系统时区影响。
 
 **Cloudflare Redirect Rules**：入口域名开橙云代理，跳转目标域名需为 DNS-only（灰云，解析到家宽公网 IP）；目标 URL 的端口位置用 `NEW_PORT` 占位，规则名需与控制台一致。
@@ -124,7 +134,7 @@ root/usr/share/natmap/          # 回调入口 + link/forward/notify + plugin-*
 |---|---|
 | 打洞失败 / 一直重试 | 确认宽带是公网 IP / NAT1；更换 STUN 服务器测试 |
 | 开机后一直没有打洞 | 日志停在「等待网络就绪」即 WAN 未就绪或 STUN 探测不通过，超时后仍会启动；可临时设 `general_wait_network=0` |
-| qB 端口改不动 | 核对 `link_qb_web_url`；域名访问需加入 qB 域名白名单；看 `/var/log/natmap/natmap.log` |
+| qB 端口改不动 | 核对 `link_qb_web_url`；域名访问需加入 qB 域名白名单；用 API Key 时确认 `link_qb_auth_mode=apikey`、key 未被轮换，且 qB 版本 ≥ 5.2.0；看 `/var/log/natmap/natmap.log`（认证失败会单独写一行，与「setPreferences 返回 4xx」区分开） |
 | 状态区「运行状态」显示未启动 | 该实例没过配置校验、没交给 procd 托管，打洞结果与日志都不会有它 —— 提示同时写在系统日志和页面执行日志里 |
 | Cloudflare 联动失败 | 规则名需与 `link_cloudflare_redirect_rule_name` 一致且已存在；DDNS 记录只更新不创建 |
 | IPv6 能连接但下载器无响应 | 开启下载器「允许 IPv6」，并在联动页打开 `Allow IPv6`；放行已覆盖该端口，无需填写地址 |

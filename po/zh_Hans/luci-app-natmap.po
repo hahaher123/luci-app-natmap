@@ -39,6 +39,10 @@ msgstr "允许外部通过 IPv6 连接打洞得到的端口，不限制设备地
 msgid "API Key"
 msgstr "API 密钥"
 
+#: natmap.js:870
+msgid "Authentication"
+msgstr "认证方式"
+
 #: natmap.js:145
 msgid "Bind port"
 msgstr "绑定端口"
@@ -307,6 +311,10 @@ msgstr "可以配合 ddns 使用，将访客重定向到指定 URL，例如 http
 msgid "<br />To use the current NAT-mapped external port, replace the port in the URL with NEW_PORT, e.g. http://1.2.3.4:NEW_PORT/ ."
 msgstr "<br />如果要使用 natmap 当前的外部端口，请用 NEW_PORT 替换 URL 中的端口（冒号后面的数字），例如 http://1.2.3.4:NEW_PORT/ 。"        
 
+#: natmap.js:899
+msgid "Requires qBittorrent 5.2.0 or newer. Generate it in qBittorrent: Preferences > WebUI > API Key. It looks like qbt_ followed by 28 characters, and rotating it invalidates the previous one immediately."
+msgstr "需要 qBittorrent 5.2.0 或更高版本。在 qBittorrent 的「偏好设置 > WebUI > API Key」里生成，形如 qbt_ 加 28 位字符；轮换后旧 key 立即失效。"
+
 #: natmap.js:97
 msgid "Restrict to address family"
 msgstr "地址族限制"
@@ -410,6 +418,10 @@ msgstr "更新 HTTPS 端口"
 #: natmap.js:614 natmap.js:653
 msgid "Username"
 msgstr "用户名"
+
+#: natmap.js:875
+msgid "Username & Password"
+msgstr "账号密码"
 
 #: natmap.js:108
 msgid "Wan Interface"

@@ -12,7 +12,7 @@ include $(TOPDIR)/rules.mk
 # /etc/init.d/natmap 与 /etc/config/natmap）。主版本取 40 > 官方首段的年份 26，
 # 可长期压过；PKG_VERSION 一变更，PKG_RELEASE 按约定复位为 1。
 PKG_NAME:=luci-app-natmap
-PKG_VERSION:=40.0.1
+PKG_VERSION:=40.0.2
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI Support for natmap

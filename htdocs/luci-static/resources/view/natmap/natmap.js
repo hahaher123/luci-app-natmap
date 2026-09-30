@@ -857,15 +857,52 @@ return view.extend({
     o.modalonly = true;
     o.depends("link_mode", "qbittorrent");
 
+    // 认证方式二选一：账号密码（默认）或 API Key（qBittorrent >= 5.2.0）。
+    //
+    // depends 的语义必须记牢：多次 depends() 之间是「或」，只有传对象才是「且」
+    // （luci-base 的 form.js：depends() 每次 push 一组，isDependencySatisfied()
+    // 对组间取或、组内取且）。下面三处凭据都要「服务是 qBittorrent 且 认证方式=X」，
+    // 所以必须用对象形式；拆成两次字符串 depends() 会让账号密码在所有服务下都冒出来。
+    o = s.taboption(
+      "link",
+      form.ListValue,
+      "link_qb_auth_mode",
+      _("Authentication")
+    );
+    o.default = "password";
+    o.modalonly = true;
+    o.depends("link_mode", "qbittorrent");
+    o.value("password", _("Username & Password"));
+    o.value("apikey", _("API Key"));
+
+    // 两种方式的凭据都 retain：依赖不满足时 LuCI 默认会把该选项从配置里删掉
+    // （form.js 的 parse()：`else if (!this.retain) remove(...)`），
+    // 那样来回切一次模式就把另一边的密码 / Key 抹掉了，切回来还得重填。
     o = s.taboption("link", form.Value, "link_qb_username", _("Username"));
     o.datatype = "string";
     o.modalonly = true;
-    o.depends("link_mode", "qbittorrent");
+    o.retain = true;
+    o.depends({ link_mode: "qbittorrent", link_qb_auth_mode: "password" });
 
     o = s.taboption("link", form.Value, "link_qb_password", _("Password"));
     o.password = true;
     o.modalonly = true;
-    o.depends("link_mode", "qbittorrent");
+    o.retain = true;
+    o.depends({ link_mode: "qbittorrent", link_qb_auth_mode: "password" });
+
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_qb_api_key",
+      _("API Key"),
+      _(
+        "Requires qBittorrent 5.2.0 or newer. Generate it in qBittorrent: Preferences > WebUI > API Key. It looks like qbt_ followed by 28 characters, and rotating it invalidates the previous one immediately."
+      )
+    );
+    o.password = true;
+    o.modalonly = true;
+    o.retain = true;
+    o.depends({ link_mode: "qbittorrent", link_qb_auth_mode: "apikey" });
 
     o = s.taboption(
       "link",
