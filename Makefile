@@ -2,9 +2,18 @@
 
 include $(TOPDIR)/rules.mk
 
+# 版本号：主版本故意取高位，用来压过官方 feed 里的同名包。
+#
+# 官方 openwrt/luci 的 applications/luci-app-natmap 与本仓库同名，而它**不在自己的
+# Makefile 里写版本号**，走 luci.mk 的默认值：PKG_VERSION 为空时落到 PKG_SRC_VERSION，
+# 即 findrev 推导出的 `YY.DDD.SSSSS~hash`（实测 25.12.5 的 x86_64 feed 里是
+# 26.270.72870~a24d1f2）。apk 与 opkg 都按「版本号高者胜」解析，本包若低于官方，
+# 一次 apk upgrade 就会被官方版本顶掉、本仓库的改动全部丢失（两者还争同一个
+# /etc/init.d/natmap 与 /etc/config/natmap）。主版本取 40 > 官方首段的年份 26，
+# 可长期压过；PKG_VERSION 一变更，PKG_RELEASE 按约定复位为 1。
 PKG_NAME:=luci-app-natmap
-PKG_VERSION:=1.6.0
-PKG_RELEASE:=4
+PKG_VERSION:=40.0.1
+PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI Support for natmap
 LUCI_DEPENDS:=+natmap +jq +curl +openssl-util +bash
