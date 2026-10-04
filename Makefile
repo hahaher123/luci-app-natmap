@@ -13,7 +13,7 @@ include $(TOPDIR)/rules.mk
 # 可长期压过；PKG_VERSION 一变更，PKG_RELEASE 按约定复位为 1。
 PKG_NAME:=luci-app-natmap
 PKG_VERSION:=40.0.2
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 LUCI_TITLE:=LuCI Support for natmap
 LUCI_DEPENDS:=+natmap +jq +curl +openssl-util +bash

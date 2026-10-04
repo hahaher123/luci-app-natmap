@@ -36,7 +36,10 @@ sleep_time=${7:-3}
 retry_count=0
 LOG=/var/log/natmap/natmap.log
 [ -d /var/log/natmap ] || mkdir -p /var/log/natmap
-COOKIE_JAR=/tmp/natmap_qb.cookies
+# cookie jar 必须带实例名：联动不再占用全局锁（见 update.sh），两个都用
+# qBittorrent 联动的实例会并发跑，共用一个固定路径的 jar 会互相把对方的
+# 会话 cookie 冲掉（表现为随机的"登录失败/403"）。
+COOKIE_JAR="/tmp/natmap_qb.$(echo "${GENERAL_NAT_NAME:-qbittorrent}" | sed 's/[^a-zA-Z0-9]/_/g' | awk '{print tolower($0)}').cookies"
 LINK_QB_AUTH_MODE=${LINK_QB_AUTH_MODE:-password}
 API_KEY=${LINK_QB_API_KEY:-}
 log() {
