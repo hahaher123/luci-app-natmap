@@ -39,7 +39,7 @@ concurrency:
 env:
   # 编译用 SDK。x86_64 仅决定用哪个 SDK，产物是 PKGARCH=all 的架构无关包。
   # 如需 ipk（OpenWrt 24.10 及更早），改成 x86_64-24.10.7 并将下面的 .apk 换成 .ipk。
-  SDK_ARCH: x86_64-25.12.5
+  SDK_ARCH: x86_64-25.12.6
   # 本仓库同时被挂载为 SDK 的一个 feed，此名即输出目录名
   FEED_NAME: natmap
   # 要编译的包目录。luci-i18n-natmap-* 翻译包在同一个目录里定义，编译它会一并产出。
