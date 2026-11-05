@@ -209,8 +209,61 @@ _natmap_retire_seg() {
 	return 0
 }
 
+# 列出"长得像本插件建的"段：段名 = <slug>_v4 / <slug>_v6_allow，且 slug 只含
+# [a-z0-9_]（由 _natmap_slug 生成）。这里只看名字与段类型，不看段内字段 ——
+# 真正的删除判据在 _natmap_retire_seg 里。
+_natmap_candidate_segs() {
+	local seg sg suffix
+
+	for seg in $(uci -q show firewall 2>/dev/null \
+			| sed -n -e 's/^firewall\.\([^.]*\)=redirect$/\1/p' \
+				-e 's/^firewall\.\([^.]*\)=rule$/\1/p'); do
+		case "$seg" in
+		*_v6_allow) suffix="_v6_allow" ;;
+		*_v4) suffix="_v4" ;;
+		*) continue ;;
+		esac
+		sg="${seg%"$suffix"}"
+		case "$sg" in
+		'' | *[!a-z0-9_]*)
+			continue
+			;;
+		esac
+		echo "$seg"
+	done
+}
+
+# 按段名后缀选期望的段类型 / target，再走四条判据删除
+#   $1=段名 $2=删除原因；删掉了返回 0
+_natmap_retire_seg_by_name() {
+	case "$1" in
+	*_v6_allow) _natmap_retire_seg "$1" rule ACCEPT "$2" ;;
+	*) _natmap_retire_seg "$1" redirect DNAT "$2" ;;
+	esac
+}
+
+# 把删除结果落到内核：commit → reload（失败再 restart 兜底）。
+#
+# reload 有前置条件 —— fw4 的 start 才写 /var/run/fw4.state，状态缺失时 reload
+# 会瞬时 die（不是超时），只有 restart 能重建；所以保留 restart 兜底。restart
+# 加 timeout：关机流程里也会走到这里（见 retire_all_firewall_segments），不能让
+# 防火墙重建把关机卡住 —— 正常情况下 reload 就成功了，根本走不到这一步。
+_natmap_fw_apply_retire() {
+	uci commit firewall
+	natmap_alert "防火墙退役清理: 配置已提交, 正在重载防火墙使其在内核中退场"
+	if /etc/init.d/firewall reload 2>/dev/null; then
+		return 0
+	fi
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 60 /etc/init.d/firewall restart 2>/dev/null
+	else
+		/etc/init.d/firewall restart 2>/dev/null
+	fi || natmap_alert "防火墙退役清理: 重载与重建都失败 —— 请手动执行 /etc/init.d/firewall restart"
+	return 0
+}
+
 retire_firewall_segments() {
-	local changed=0 keep=" " s en nm sg seg suffix
+	local changed=0 keep=" " s en nm sg seg
 
 	# ① 仍然启用的实例（缺省即启用）→ 它们的 slug 必须保留
 	for s in $(uci -q show natmap 2>/dev/null | sed -n 's/^natmap\.\([^.]*\)=natmap$/\1/p'); do
@@ -233,42 +286,40 @@ retire_firewall_segments() {
 	done
 
 	# ③ 孤儿段：防火墙里有、却没有任何启用实例对应（实例已被整个删除）。
-	#    注意 busybox sed 的 BRE 不支持 \| 交替，所以拆成两条替换。
-	for seg in $(uci -q show firewall 2>/dev/null \
-			| sed -n -e 's/^firewall\.\([^.]*\)=redirect$/\1/p' \
-				-e 's/^firewall\.\([^.]*\)=rule$/\1/p'); do
-		suffix=""
-		case "$seg" in
-		*_v6_allow) suffix="_v6_allow" ;;
-		*_v4) suffix="_v4" ;;
-		*) continue ;;
-		esac
-		sg="${seg%"$suffix"}"
-		# slug 只可能由 _natmap_slug() 生成（小写字母 / 数字 / 下划线）。
-		# 别的一律不是本插件建的 —— 手建的段名常带大写或连字符，直接跳过。
-		case "$sg" in
-		'' | *[!a-z0-9_]*)
-			continue
-			;;
-		esac
+	for seg in $(_natmap_candidate_segs); do
+		sg="${seg%_v4}"
+		[ "$sg" = "$seg" ] && sg="${seg%_v6_allow}"
 		case "$keep" in
 		*" $sg "*) continue ;;
 		esac
-		if [ "$suffix" = "_v4" ]; then
-			_natmap_retire_seg "$seg" redirect DNAT "无对应实例(孤儿段)" && changed=1
-		else
-			_natmap_retire_seg "$seg" rule ACCEPT "无对应实例(孤儿段)" && changed=1
-		fi
+		_natmap_retire_seg_by_name "$seg" "无对应实例(孤儿段)" && changed=1
 	done
 
 	[ "$changed" = 1 ] || return 0
 
-	uci commit firewall
-	natmap_alert "防火墙退役清理: 配置已提交, 正在重载防火墙使其在内核中退场"
-	if ! /etc/init.d/firewall reload 2>/dev/null; then
-		/etc/init.d/firewall restart 2>/dev/null \
-			|| natmap_alert "防火墙退役清理: 重载与重建都失败 —— 请手动执行 /etc/init.d/firewall restart"
-	fi
+	_natmap_fw_apply_retire
+	return 0
+}
+
+# 服务被停止（stop / 关机时的 rc.d stop）→ 本插件的**所有**段都要退场。
+#
+# 与 retire_firewall_segments 的区别：这里不看实例是否启用。服务已经不在跑，
+# 打洞端口随之消失 —— 留在内核里的 DNAT 把一个外部端口指向一个没人监听的
+# 内网口，而 IPv6 放行（ACCEPT）与进程死活无关，仍然是真的放行。两种段都必须
+# 收走，否则用户"停用 natmap"之后外部依然进得来，而他以为已经关掉了。
+#
+# 删除判据与上面完全一致（段名 + 类型 + name + target 四条全对才动），手建的
+# 规则不会被误删。
+retire_all_firewall_segments() {
+	local changed=0 seg
+
+	for seg in $(_natmap_candidate_segs); do
+		_natmap_retire_seg_by_name "$seg" "服务已停止" && changed=1
+	done
+
+	[ "$changed" = 1 ] || return 0
+
+	_natmap_fw_apply_retire
 	return 0
 }
 
@@ -349,5 +400,9 @@ reload_service() {
 }
 
 service_stopped() {
+	# 停服 = 这个实例组的端口映射彻底作废，防火墙里由本插件建的段必须一起退场。
+	# 以前只清状态 JSON，段会一直留在 uci + 内核里：用户点了「停止」/停用了服务，
+	# 外部却还能打进来（DNAT 指向没人监听的口，IPv6 放行更是照旧生效）。
+	retire_all_firewall_segments
 	clear_status_files
 }
