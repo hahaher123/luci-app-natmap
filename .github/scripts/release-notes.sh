@@ -35,15 +35,9 @@ fi
 CHANGES="$(git log --no-merges --pretty='- %s（%h）' "${LOG_RANGE}" 2>/dev/null \
 	| grep -E '^- (feat|fix)(\(|:|!)' || true)"
 
-# 标题：tag + 首条 feat/fix 摘要。过滤后可能一条不剩（整段都是维护性提交），
-# 此时标题退化为纯 tag，避免出现 "v1.5.10: " 这种空尾巴。
-PLAIN_CHANGES="$(printf '%s' "${CHANGES}" | sed -e 's/^- //' -e 's/（[0-9a-f]\{7,\}）$//')"
-FIRST="$(printf '%s\n' "${PLAIN_CHANGES}" | head -n 1 || true)"
-if [ -n "${FIRST}" ]; then
-	printf '%s: %s\n' "${TAG}" "${FIRST}" >"${OUT}/release-title.txt"
-else
-	printf '%s\n' "${TAG}" >"${OUT}/release-title.txt"
-fi
+# 标题：只写 tag 版本号（咔咔 2026-11-05 定：不带改动描述）。
+# 改动描述仍在正文的「## 本次变更」里完整列出，标题不再重复。
+printf '%s\n' "${TAG}" >"${OUT}/release-title.txt"
 
 # 过滤后一条不剩时有两种可能，必须区分：① 区间里确实只有维护性提交（正常，
 # 例如一次纯版本号/CI 的发布）；② 区间里有提交，但 subject 连规范前缀都没有
